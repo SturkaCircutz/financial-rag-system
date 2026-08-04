@@ -6,6 +6,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -21,6 +22,8 @@ import org.springframework.test.web.servlet.MockMvc;
 @SpringBootTest
 @AutoConfigureMockMvc
 class ReportControllerTest {
+
+    private static final String REQUEST_ID_HEADER = "X-Request-Id";
 
     @Autowired
     private MockMvc mockMvc;
@@ -41,6 +44,7 @@ class ReportControllerTest {
                                 }
                                 """))
                 .andExpect(status().isCreated())
+                .andExpect(header().exists(REQUEST_ID_HEADER))
                 .andExpect(jsonPath("$.reportId", notNullValue()))
                 .andExpect(jsonPath("$.status", equalTo("QUEUED")))
                 .andExpect(jsonPath("$.tickers[0]", equalTo("NVDA")))
@@ -92,13 +96,23 @@ class ReportControllerTest {
 
     @Test
     void getReportReturnsNotFoundForUnknownReport() throws Exception {
-        mockMvc.perform(get("/api/v1/reports/{reportId}", "missing-report"))
-                .andExpect(status().isNotFound());
+        mockMvc.perform(get("/api/v1/reports/{reportId}", "missing-report")
+                        .header(REQUEST_ID_HEADER, "test-not-found-request"))
+                .andExpect(status().isNotFound())
+                .andExpect(header().string(REQUEST_ID_HEADER, "test-not-found-request"))
+                .andExpect(jsonPath("$.status", equalTo(404)))
+                .andExpect(jsonPath("$.error", equalTo("not_found")))
+                .andExpect(jsonPath("$.message", equalTo("Report not found: missing-report")))
+                .andExpect(jsonPath("$.requestId", equalTo("test-not-found-request")))
+                .andExpect(jsonPath("$.path", equalTo("/api/v1/reports/missing-report")))
+                .andExpect(jsonPath("$.fieldErrors", hasSize(0)))
+                .andExpect(jsonPath("$.timestamp", notNullValue()));
     }
 
     @Test
     void createReportRejectsInvalidRequest() throws Exception {
         mockMvc.perform(post("/api/v1/reports")
+                        .header(REQUEST_ID_HEADER, "test-validation-request")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -107,7 +121,32 @@ class ReportControllerTest {
                                   "reportType": null
                                 }
                                 """))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isBadRequest())
+                .andExpect(header().string(REQUEST_ID_HEADER, "test-validation-request"))
+                .andExpect(jsonPath("$.status", equalTo(400)))
+                .andExpect(jsonPath("$.error", equalTo("validation_failed")))
+                .andExpect(jsonPath("$.message", equalTo("Request body validation failed.")))
+                .andExpect(jsonPath("$.requestId", equalTo("test-validation-request")))
+                .andExpect(jsonPath("$.path", equalTo("/api/v1/reports")))
+                .andExpect(jsonPath("$.fieldErrors", hasSize(3)))
+                .andExpect(jsonPath("$.timestamp", notNullValue()));
+    }
+
+    @Test
+    void createReportRejectsMalformedJson() throws Exception {
+        mockMvc.perform(post("/api/v1/reports")
+                        .header(REQUEST_ID_HEADER, "test-malformed-request")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{"))
+                .andExpect(status().isBadRequest())
+                .andExpect(header().string(REQUEST_ID_HEADER, "test-malformed-request"))
+                .andExpect(jsonPath("$.status", equalTo(400)))
+                .andExpect(jsonPath("$.error", equalTo("malformed_json")))
+                .andExpect(jsonPath("$.message", equalTo("Request body is missing or malformed.")))
+                .andExpect(jsonPath("$.requestId", equalTo("test-malformed-request")))
+                .andExpect(jsonPath("$.path", equalTo("/api/v1/reports")))
+                .andExpect(jsonPath("$.fieldErrors", hasSize(0)))
+                .andExpect(jsonPath("$.timestamp", notNullValue()));
     }
 
     private JsonNode waitForCompletedReport(String reportId) throws Exception {
