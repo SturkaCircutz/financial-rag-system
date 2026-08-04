@@ -1,5 +1,6 @@
 package com.financialrag.backend.report;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
@@ -28,7 +29,7 @@ class ReportControllerTest {
     private ObjectMapper objectMapper;
 
     @Test
-    void createReportReturnsCompletedStubReport() throws Exception {
+    void createReportReturnsQueuedReport() throws Exception {
         mockMvc.perform(post("/api/v1/reports")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -41,19 +42,19 @@ class ReportControllerTest {
                                 """))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.reportId", notNullValue()))
-                .andExpect(jsonPath("$.status", equalTo("COMPLETED")))
+                .andExpect(jsonPath("$.status", equalTo("QUEUED")))
                 .andExpect(jsonPath("$.tickers[0]", equalTo("NVDA")))
                 .andExpect(jsonPath("$.reportType", equalTo("COMPANY_BRIEF")))
                 .andExpect(jsonPath("$.question", equalTo("What are the latest risk factors?")))
                 .andExpect(jsonPath("$.timeHorizon", equalTo("30d")))
-                .andExpect(jsonPath("$.summary", notNullValue()))
-                .andExpect(jsonPath("$.keyFindings", hasSize(3)))
+                .andExpect(jsonPath("$.summary", equalTo("")))
+                .andExpect(jsonPath("$.keyFindings", hasSize(0)))
                 .andExpect(jsonPath("$.citations", hasSize(0)))
                 .andExpect(jsonPath("$.sourceCoverage.secChunks", equalTo(0)))
                 .andExpect(jsonPath("$.sourceCoverage.newsChunks", equalTo(0)))
                 .andExpect(jsonPath("$.sourceCoverage.earningsChunks", equalTo(0)))
-                .andExpect(jsonPath("$.diagnostics.mode", equalTo("stub")))
-                .andExpect(jsonPath("$.diagnostics.ragServiceStatus", equalTo("stub_client")))
+                .andExpect(jsonPath("$.diagnostics.mode", equalTo("pending")))
+                .andExpect(jsonPath("$.diagnostics.ragServiceStatus", equalTo("queued")))
                 .andExpect(jsonPath("$.createdAt", notNullValue()));
     }
 
@@ -76,14 +77,17 @@ class ReportControllerTest {
         JsonNode responseJson = objectMapper.readTree(responseBody);
         String reportId = responseJson.get("reportId").asText();
 
-        mockMvc.perform(get("/api/v1/reports/{reportId}", reportId))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.reportId", equalTo(reportId)))
-                .andExpect(jsonPath("$.status", equalTo("COMPLETED")))
-                .andExpect(jsonPath("$.tickers[0]", equalTo("MSFT")))
-                .andExpect(jsonPath("$.tickers[1]", equalTo("AAPL")))
-                .andExpect(jsonPath("$.reportType", equalTo("COMPARATIVE")))
-                .andExpect(jsonPath("$.timeHorizon", equalTo("30d")));
+        JsonNode completedReport = waitForCompletedReport(reportId);
+
+        assertThat(completedReport.path("reportId").asText()).isEqualTo(reportId);
+        assertThat(completedReport.path("status").asText()).isEqualTo("COMPLETED");
+        assertThat(completedReport.path("tickers").get(0).asText()).isEqualTo("MSFT");
+        assertThat(completedReport.path("tickers").get(1).asText()).isEqualTo("AAPL");
+        assertThat(completedReport.path("reportType").asText()).isEqualTo("COMPARATIVE");
+        assertThat(completedReport.path("timeHorizon").asText()).isEqualTo("30d");
+        assertThat(completedReport.path("keyFindings")).hasSize(3);
+        assertThat(completedReport.path("diagnostics").path("mode").asText()).isEqualTo("stub");
+        assertThat(completedReport.path("diagnostics").path("ragServiceStatus").asText()).isEqualTo("stub_client");
     }
 
     @Test
@@ -104,5 +108,25 @@ class ReportControllerTest {
                                 }
                                 """))
                 .andExpect(status().isBadRequest());
+    }
+
+    private JsonNode waitForCompletedReport(String reportId) throws Exception {
+        JsonNode latestReport = null;
+        for (int attempt = 0; attempt < 40; attempt++) {
+            String responseBody = mockMvc.perform(get("/api/v1/reports/{reportId}", reportId))
+                    .andExpect(status().isOk())
+                    .andReturn()
+                    .getResponse()
+                    .getContentAsString();
+            latestReport = objectMapper.readTree(responseBody);
+            if ("COMPLETED".equals(latestReport.path("status").asText())) {
+                return latestReport;
+            }
+            Thread.sleep(50);
+        }
+
+        assertThat(latestReport).isNotNull();
+        assertThat(latestReport.path("status").asText()).isEqualTo("COMPLETED");
+        return latestReport;
     }
 }

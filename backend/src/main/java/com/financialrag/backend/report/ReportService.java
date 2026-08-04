@@ -1,17 +1,16 @@
 package com.financialrag.backend.report;
 
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
-import java.util.HexFormat;
 import java.util.List;
 import java.util.Locale;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.Executor;
 
 import com.financialrag.backend.rag.RagClient;
 import com.financialrag.backend.rag.RagServiceContract;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -19,38 +18,32 @@ public class ReportService {
 
     private final ConcurrentMap<String, ReportResponse> reports = new ConcurrentHashMap<>();
     private final RagClient ragClient;
+    private final Executor reportExecutor;
 
-    public ReportService(RagClient ragClient) {
+    public ReportService(RagClient ragClient, @Qualifier("reportExecutor") Executor reportExecutor) {
         this.ragClient = ragClient;
+        this.reportExecutor = reportExecutor;
     }
 
     public ReportResponse createReport(ReportRequest request) {
         List<String> tickers = normalizeTickers(request.tickers());
         String timeHorizon = normalizeTimeHorizon(request.timeHorizon());
-        String reportId = buildReportId(tickers, request.question(), request.reportType(), timeHorizon);
-        RagServiceContract.GenerateReportResponse ragResponse = ragClient.generateReport(
-                new RagServiceContract.GenerateReportRequest(
-                        tickers,
-                        request.question().trim(),
-                        request.reportType().name(),
-                        timeHorizon));
-
-        ReportResponse response = new ReportResponse(
+        String question = request.question().trim();
+        String reportId = buildReportId();
+        Instant createdAt = Instant.now();
+        ReportResponse queuedResponse = pendingResponse(
                 reportId,
-                ReportStatus.COMPLETED,
+                ReportStatus.QUEUED,
                 tickers,
                 request.reportType(),
-                request.question().trim(),
+                question,
                 timeHorizon,
-                ragResponse.summary(),
-                ragResponse.keyFindings(),
-                mapCitations(ragResponse.citations()),
-                mapSourceCoverage(ragResponse.sourceCoverage()),
-                mapDiagnostics(ragResponse.diagnostics()),
-                Instant.now());
+                createdAt);
 
-        reports.put(reportId, response);
-        return response;
+        reports.put(reportId, queuedResponse);
+        reportExecutor.execute(
+                () -> generateReport(reportId, tickers, request.reportType(), question, timeHorizon, createdAt));
+        return queuedResponse;
     }
 
     public ReportResponse getReport(String reportId) {
@@ -59,6 +52,35 @@ public class ReportService {
             throw new ReportNotFoundException(reportId);
         }
         return response;
+    }
+
+    private void generateReport(
+            String reportId,
+            List<String> tickers,
+            ReportType reportType,
+            String question,
+            String timeHorizon,
+            Instant createdAt) {
+        reports.put(
+                reportId,
+                pendingResponse(reportId, ReportStatus.RUNNING, tickers, reportType, question, timeHorizon, createdAt));
+
+        try {
+            RagServiceContract.GenerateReportResponse ragResponse = ragClient.generateReport(
+                    new RagServiceContract.GenerateReportRequest(
+                            tickers,
+                            question,
+                            reportType.name(),
+                            timeHorizon));
+
+            reports.put(
+                    reportId,
+                    completedResponse(reportId, tickers, reportType, question, timeHorizon, createdAt, ragResponse));
+        } catch (RuntimeException exception) {
+            reports.put(
+                    reportId,
+                    failedResponse(reportId, tickers, reportType, question, timeHorizon, createdAt));
+        }
     }
 
     private static List<String> normalizeTickers(List<String> tickers) {
@@ -94,6 +116,74 @@ public class ReportService {
                 diagnostics.generationStatus());
     }
 
+    private static ReportResponse pendingResponse(
+            String reportId,
+            ReportStatus status,
+            List<String> tickers,
+            ReportType reportType,
+            String question,
+            String timeHorizon,
+            Instant createdAt) {
+        return new ReportResponse(
+                reportId,
+                status,
+                tickers,
+                reportType,
+                question,
+                timeHorizon,
+                "",
+                List.of(),
+                List.of(),
+                new SourceCoverage(0, 0, 0),
+                new ReportDiagnostics("pending", status.name().toLowerCase(Locale.ROOT), "not_started", "not_started"),
+                createdAt);
+    }
+
+    private static ReportResponse completedResponse(
+            String reportId,
+            List<String> tickers,
+            ReportType reportType,
+            String question,
+            String timeHorizon,
+            Instant createdAt,
+            RagServiceContract.GenerateReportResponse ragResponse) {
+        return new ReportResponse(
+                reportId,
+                ReportStatus.COMPLETED,
+                tickers,
+                reportType,
+                question,
+                timeHorizon,
+                ragResponse.summary(),
+                ragResponse.keyFindings(),
+                mapCitations(ragResponse.citations()),
+                mapSourceCoverage(ragResponse.sourceCoverage()),
+                mapDiagnostics(ragResponse.diagnostics()),
+                createdAt);
+    }
+
+    private static ReportResponse failedResponse(
+            String reportId,
+            List<String> tickers,
+            ReportType reportType,
+            String question,
+            String timeHorizon,
+            Instant createdAt) {
+        return new ReportResponse(
+                reportId,
+                ReportStatus.FAILED,
+                tickers,
+                reportType,
+                question,
+                timeHorizon,
+                "Report generation failed before completion.",
+                List.of(),
+                List.of(),
+                new SourceCoverage(0, 0, 0),
+                new ReportDiagnostics("pending", "failed", "not_started", "failed"),
+                createdAt);
+    }
+
     private static String normalizeTimeHorizon(String timeHorizon) {
         if (timeHorizon == null || timeHorizon.isBlank()) {
             return "30d";
@@ -101,18 +191,7 @@ public class ReportService {
         return timeHorizon.trim();
     }
 
-    private static String buildReportId(
-            List<String> tickers,
-            String question,
-            ReportType reportType,
-            String timeHorizon) {
-        String seed = String.join(",", tickers) + "|" + question.trim() + "|" + reportType + "|" + timeHorizon;
-        try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] hash = digest.digest(seed.getBytes(StandardCharsets.UTF_8));
-            return "stub-" + HexFormat.of().formatHex(hash).substring(0, 12);
-        } catch (NoSuchAlgorithmException exception) {
-            throw new IllegalStateException("SHA-256 is not available", exception);
-        }
+    private static String buildReportId() {
+        return "report-" + UUID.randomUUID();
     }
 }
