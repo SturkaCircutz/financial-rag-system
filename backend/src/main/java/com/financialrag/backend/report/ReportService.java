@@ -11,8 +11,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
 import com.financialrag.backend.rag.RagClient;
-import com.financialrag.backend.rag.RagClient.RagReportDraft;
-import com.financialrag.backend.rag.RagClient.RagReportQuery;
+import com.financialrag.backend.rag.RagServiceContract;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -29,8 +28,12 @@ public class ReportService {
         List<String> tickers = normalizeTickers(request.tickers());
         String timeHorizon = normalizeTimeHorizon(request.timeHorizon());
         String reportId = buildReportId(tickers, request.question(), request.reportType(), timeHorizon);
-        RagReportDraft reportDraft = ragClient.generateReport(
-                new RagReportQuery(tickers, request.question().trim(), request.reportType(), timeHorizon));
+        RagServiceContract.GenerateReportResponse ragResponse = ragClient.generateReport(
+                new RagServiceContract.GenerateReportRequest(
+                        tickers,
+                        request.question().trim(),
+                        request.reportType().name(),
+                        timeHorizon));
 
         ReportResponse response = new ReportResponse(
                 reportId,
@@ -39,11 +42,11 @@ public class ReportService {
                 request.reportType(),
                 request.question().trim(),
                 timeHorizon,
-                reportDraft.summary(),
-                reportDraft.keyFindings(),
-                reportDraft.citations(),
-                reportDraft.sourceCoverage(),
-                reportDraft.diagnostics(),
+                ragResponse.summary(),
+                ragResponse.keyFindings(),
+                mapCitations(ragResponse.citations()),
+                mapSourceCoverage(ragResponse.sourceCoverage()),
+                mapDiagnostics(ragResponse.diagnostics()),
                 Instant.now());
 
         reports.put(reportId, response);
@@ -64,6 +67,31 @@ public class ReportService {
                 .filter(ticker -> !ticker.isBlank())
                 .distinct()
                 .toList();
+    }
+
+    private static List<Citation> mapCitations(List<RagServiceContract.Citation> citations) {
+        return citations.stream()
+                .map(citation -> new Citation(
+                        citation.evidenceId(),
+                        citation.sourceType(),
+                        citation.title(),
+                        citation.url()))
+                .toList();
+    }
+
+    private static SourceCoverage mapSourceCoverage(RagServiceContract.SourceCoverage sourceCoverage) {
+        return new SourceCoverage(
+                sourceCoverage.secChunks(),
+                sourceCoverage.newsChunks(),
+                sourceCoverage.earningsChunks());
+    }
+
+    private static ReportDiagnostics mapDiagnostics(RagServiceContract.Diagnostics diagnostics) {
+        return new ReportDiagnostics(
+                diagnostics.mode(),
+                diagnostics.ragServiceStatus(),
+                diagnostics.retrievalStatus(),
+                diagnostics.generationStatus());
     }
 
     private static String normalizeTimeHorizon(String timeHorizon) {

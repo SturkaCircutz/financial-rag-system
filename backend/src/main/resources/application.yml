@@ -16,6 +16,8 @@ management:
 rag:
   service:
     base-url: ${RAG_SERVICE_BASE_URL:http://localhost:8001}
+    mode: ${RAG_SERVICE_MODE:stub}
+    timeout: ${RAG_SERVICE_TIMEOUT:30s}
 
 trading:
   service:
