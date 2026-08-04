@@ -53,6 +53,7 @@ class ReportControllerTest {
                 .andExpect(jsonPath("$.sourceCoverage.newsChunks", equalTo(0)))
                 .andExpect(jsonPath("$.sourceCoverage.earningsChunks", equalTo(0)))
                 .andExpect(jsonPath("$.diagnostics.mode", equalTo("stub")))
+                .andExpect(jsonPath("$.diagnostics.ragServiceStatus", equalTo("stub_client")))
                 .andExpect(jsonPath("$.createdAt", notNullValue()));
     }
 

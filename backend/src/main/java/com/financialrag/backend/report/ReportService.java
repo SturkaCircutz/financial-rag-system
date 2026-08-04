@@ -5,23 +5,32 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.util.HexFormat;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
+import com.financialrag.backend.rag.RagClient;
+import com.financialrag.backend.rag.RagClient.RagReportDraft;
+import com.financialrag.backend.rag.RagClient.RagReportQuery;
 import org.springframework.stereotype.Service;
 
 @Service
 public class ReportService {
 
     private final ConcurrentMap<String, ReportResponse> reports = new ConcurrentHashMap<>();
+    private final RagClient ragClient;
+
+    public ReportService(RagClient ragClient) {
+        this.ragClient = ragClient;
+    }
 
     public ReportResponse createReport(ReportRequest request) {
         List<String> tickers = normalizeTickers(request.tickers());
         String timeHorizon = normalizeTimeHorizon(request.timeHorizon());
         String reportId = buildReportId(tickers, request.question(), request.reportType(), timeHorizon);
+        RagReportDraft reportDraft = ragClient.generateReport(
+                new RagReportQuery(tickers, request.question().trim(), request.reportType(), timeHorizon));
 
         ReportResponse response = new ReportResponse(
                 reportId,
@@ -30,14 +39,11 @@ public class ReportService {
                 request.reportType(),
                 request.question().trim(),
                 timeHorizon,
-                buildSummary(tickers, request.reportType()),
-                List.of(
-                        "Stub SEC evidence placeholder created for " + String.join(", ", tickers) + ".",
-                        "Stub news evidence placeholder created for " + String.join(", ", tickers) + ".",
-                        "Stub earnings evidence placeholder created for " + String.join(", ", tickers) + "."),
-                List.of(),
-                new SourceCoverage(0, 0, 0),
-                new ReportDiagnostics("stub", "not_connected", "not_started", "not_started"),
+                reportDraft.summary(),
+                reportDraft.keyFindings(),
+                reportDraft.citations(),
+                reportDraft.sourceCoverage(),
+                reportDraft.diagnostics(),
                 Instant.now());
 
         reports.put(reportId, response);
@@ -56,8 +62,7 @@ public class ReportService {
         return tickers.stream()
                 .map(ticker -> ticker.trim().toUpperCase(Locale.ROOT))
                 .filter(ticker -> !ticker.isBlank())
-                .collect(LinkedHashSet::new, LinkedHashSet::add, LinkedHashSet::addAll)
-                .stream()
+                .distinct()
                 .toList();
     }
 
@@ -66,12 +71,6 @@ public class ReportService {
             return "30d";
         }
         return timeHorizon.trim();
-    }
-
-    private static String buildSummary(List<String> tickers, ReportType reportType) {
-        return "Stub " + reportType.name().toLowerCase(Locale.ROOT).replace('_', ' ')
-                + " generated for " + String.join(", ", tickers)
-                + ". Real SEC, news, earnings, retrieval, reranking, and LLM generation are not connected yet.";
     }
 
     private static String buildReportId(
