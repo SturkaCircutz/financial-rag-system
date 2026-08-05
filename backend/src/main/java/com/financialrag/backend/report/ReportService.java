@@ -5,27 +5,18 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.UUID;
-import java.util.concurrent.Executor;
 
-import com.financialrag.backend.rag.RagClient;
-import com.financialrag.backend.rag.RagServiceContract;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 
 @Service
 public class ReportService {
 
-    private final RagClient ragClient;
     private final ReportRepository reportRepository;
-    private final Executor reportExecutor;
+    private final ReportJobQueue reportJobQueue;
 
-    public ReportService(
-            RagClient ragClient,
-            ReportRepository reportRepository,
-            @Qualifier("reportExecutor") Executor reportExecutor) {
-        this.ragClient = ragClient;
+    public ReportService(ReportRepository reportRepository, ReportJobQueue reportJobQueue) {
         this.reportRepository = reportRepository;
-        this.reportExecutor = reportExecutor;
+        this.reportJobQueue = reportJobQueue;
     }
 
     public ReportResponse createReport(ReportRequest request) {
@@ -46,65 +37,13 @@ public class ReportService {
                 createdAt);
 
         reportRepository.save(queuedResponse);
-        reportExecutor.execute(
-                () -> generateReport(
-                        reportId,
-                        tickers,
-                        request.reportType(),
-                        question,
-                        timeHorizon,
-                        sourceFilters,
-                        createdAt));
+        reportJobQueue.enqueue(new ReportJob(reportId));
         return queuedResponse;
     }
 
     public ReportResponse getReport(String reportId) {
         return reportRepository.findById(reportId)
                 .orElseThrow(() -> new ReportNotFoundException(reportId));
-    }
-
-    private void generateReport(
-            String reportId,
-            List<String> tickers,
-            ReportType reportType,
-            String question,
-            String timeHorizon,
-            List<SourceFilter> sourceFilters,
-            Instant createdAt) {
-        reportRepository.save(
-                pendingResponse(
-                        reportId,
-                        ReportStatus.RUNNING,
-                        tickers,
-                        reportType,
-                        question,
-                        timeHorizon,
-                        sourceFilters,
-                        createdAt));
-
-        try {
-            RagServiceContract.GenerateReportResponse ragResponse = ragClient.generateReport(
-                    new RagServiceContract.GenerateReportRequest(
-                            tickers,
-                            question,
-                            reportType.name(),
-                            timeHorizon,
-                            mapSourceFilters(sourceFilters)));
-
-            reportRepository.save(
-                    completedResponse(
-                            reportId,
-                            tickers,
-                            reportType,
-                            question,
-                            timeHorizon,
-                            sourceFilters,
-                            createdAt,
-                            ragResponse));
-        } catch (RuntimeException exception) {
-            reportRepository.save(
-                    failedResponse(reportId, tickers, reportType, question, timeHorizon, sourceFilters, createdAt));
-        }
     }
 
     private static List<String> normalizeTickers(List<String> tickers) {
@@ -130,37 +69,6 @@ public class ReportService {
         return normalizedSourceFilters;
     }
 
-    private static List<String> mapSourceFilters(List<SourceFilter> sourceFilters) {
-        return sourceFilters.stream()
-                .map(SourceFilter::name)
-                .toList();
-    }
-
-    private static List<Citation> mapCitations(List<RagServiceContract.Citation> citations) {
-        return citations.stream()
-                .map(citation -> new Citation(
-                        citation.evidenceId(),
-                        citation.sourceType(),
-                        citation.title(),
-                        citation.url()))
-                .toList();
-    }
-
-    private static SourceCoverage mapSourceCoverage(RagServiceContract.SourceCoverage sourceCoverage) {
-        return new SourceCoverage(
-                sourceCoverage.secChunks(),
-                sourceCoverage.newsChunks(),
-                sourceCoverage.earningsChunks());
-    }
-
-    private static ReportDiagnostics mapDiagnostics(RagServiceContract.Diagnostics diagnostics) {
-        return new ReportDiagnostics(
-                diagnostics.mode(),
-                diagnostics.ragServiceStatus(),
-                diagnostics.retrievalStatus(),
-                diagnostics.generationStatus());
-    }
-
     private static ReportResponse pendingResponse(
             String reportId,
             ReportStatus status,
@@ -183,55 +91,6 @@ public class ReportService {
                 List.of(),
                 new SourceCoverage(0, 0, 0),
                 new ReportDiagnostics("pending", status.name().toLowerCase(Locale.ROOT), "not_started", "not_started"),
-                createdAt);
-    }
-
-    private static ReportResponse completedResponse(
-            String reportId,
-            List<String> tickers,
-            ReportType reportType,
-            String question,
-            String timeHorizon,
-            List<SourceFilter> sourceFilters,
-            Instant createdAt,
-            RagServiceContract.GenerateReportResponse ragResponse) {
-        return new ReportResponse(
-                reportId,
-                ReportStatus.COMPLETED,
-                tickers,
-                reportType,
-                question,
-                timeHorizon,
-                sourceFilters,
-                ragResponse.summary(),
-                ragResponse.keyFindings(),
-                mapCitations(ragResponse.citations()),
-                mapSourceCoverage(ragResponse.sourceCoverage()),
-                mapDiagnostics(ragResponse.diagnostics()),
-                createdAt);
-    }
-
-    private static ReportResponse failedResponse(
-            String reportId,
-            List<String> tickers,
-            ReportType reportType,
-            String question,
-            String timeHorizon,
-            List<SourceFilter> sourceFilters,
-            Instant createdAt) {
-        return new ReportResponse(
-                reportId,
-                ReportStatus.FAILED,
-                tickers,
-                reportType,
-                question,
-                timeHorizon,
-                sourceFilters,
-                "Report generation failed before completion.",
-                List.of(),
-                List.of(),
-                new SourceCoverage(0, 0, 0),
-                new ReportDiagnostics("pending", "failed", "not_started", "failed"),
                 createdAt);
     }
 

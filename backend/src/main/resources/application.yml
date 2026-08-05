@@ -31,3 +31,5 @@ openai:
 reports:
   repository:
     mode: ${REPORT_REPOSITORY_MODE:memory}
+  queue:
+    mode: ${REPORT_QUEUE_MODE:memory}
