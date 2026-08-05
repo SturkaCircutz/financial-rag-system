@@ -22,3 +22,8 @@ rag:
 trading:
   service:
     target: ${TRADING_SERVICE_TARGET:localhost:50051}
+
+openai:
+  api-key: ${OPENAI_API_KEY:}
+  model: ${OPENAI_MODEL:}
+  timeout: ${OPENAI_TIMEOUT:30s}
