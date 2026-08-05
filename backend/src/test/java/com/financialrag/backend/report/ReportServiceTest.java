@@ -14,7 +14,8 @@ class ReportServiceTest {
         RagClient failingRagClient = request -> {
             throw new IllegalStateException("RAG service unavailable");
         };
-        ReportService reportService = new ReportService(failingRagClient, Runnable::run);
+        ReportRepository reportRepository = new InMemoryReportRepository();
+        ReportService reportService = new ReportService(failingRagClient, reportRepository, Runnable::run);
 
         ReportResponse createdReport = reportService.createReport(new ReportRequest(
                 List.of("nvda"),

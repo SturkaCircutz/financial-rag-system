@@ -5,8 +5,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executor;
 
 import com.financialrag.backend.rag.RagClient;
@@ -17,12 +15,16 @@ import org.springframework.stereotype.Service;
 @Service
 public class ReportService {
 
-    private final ConcurrentMap<String, ReportResponse> reports = new ConcurrentHashMap<>();
     private final RagClient ragClient;
+    private final ReportRepository reportRepository;
     private final Executor reportExecutor;
 
-    public ReportService(RagClient ragClient, @Qualifier("reportExecutor") Executor reportExecutor) {
+    public ReportService(
+            RagClient ragClient,
+            ReportRepository reportRepository,
+            @Qualifier("reportExecutor") Executor reportExecutor) {
         this.ragClient = ragClient;
+        this.reportRepository = reportRepository;
         this.reportExecutor = reportExecutor;
     }
 
@@ -43,7 +45,7 @@ public class ReportService {
                 sourceFilters,
                 createdAt);
 
-        reports.put(reportId, queuedResponse);
+        reportRepository.save(queuedResponse);
         reportExecutor.execute(
                 () -> generateReport(
                         reportId,
@@ -57,11 +59,8 @@ public class ReportService {
     }
 
     public ReportResponse getReport(String reportId) {
-        ReportResponse response = reports.get(reportId);
-        if (response == null) {
-            throw new ReportNotFoundException(reportId);
-        }
-        return response;
+        return reportRepository.findById(reportId)
+                .orElseThrow(() -> new ReportNotFoundException(reportId));
     }
 
     private void generateReport(
@@ -72,8 +71,7 @@ public class ReportService {
             String timeHorizon,
             List<SourceFilter> sourceFilters,
             Instant createdAt) {
-        reports.put(
-                reportId,
+        reportRepository.save(
                 pendingResponse(
                         reportId,
                         ReportStatus.RUNNING,
@@ -93,8 +91,7 @@ public class ReportService {
                             timeHorizon,
                             mapSourceFilters(sourceFilters)));
 
-            reports.put(
-                    reportId,
+            reportRepository.save(
                     completedResponse(
                             reportId,
                             tickers,
@@ -105,8 +102,7 @@ public class ReportService {
                             createdAt,
                             ragResponse));
         } catch (RuntimeException exception) {
-            reports.put(
-                    reportId,
+            reportRepository.save(
                     failedResponse(reportId, tickers, reportType, question, timeHorizon, sourceFilters, createdAt));
         }
     }

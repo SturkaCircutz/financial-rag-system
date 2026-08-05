@@ -27,3 +27,7 @@ openai:
   api-key: ${OPENAI_API_KEY:}
   model: ${OPENAI_MODEL:}
   timeout: ${OPENAI_TIMEOUT:30s}
+
+reports:
+  repository:
+    mode: ${REPORT_REPOSITORY_MODE:memory}
