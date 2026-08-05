@@ -12,6 +12,7 @@ def test_chunk_document_creates_stable_chunk_metadata():
         url="https://example.com/nvda-sec-test",
         section="Risk Factors",
         text="one two three four five six seven eight nine ten",
+        metadata={"cik": "0001045810", "form_type": "10-Q"},
     )
 
     chunks = chunk_document(document, max_tokens=4, overlap_tokens=1)
@@ -27,3 +28,4 @@ def test_chunk_document_creates_stable_chunk_metadata():
     assert chunks[0].text == "one two three four"
     assert chunks[1].text == "four five six seven"
     assert len(chunks[0].content_hash) == 64
+    assert chunks[0].metadata == {"cik": "0001045810", "form_type": "10-Q"}

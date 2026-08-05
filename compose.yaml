@@ -1,8 +1,19 @@
 services:
+  dynamodb-local:
+    image: amazon/dynamodb-local:latest
+    command: ["-jar", "DynamoDBLocal.jar", "-sharedDb", "-dbPath", "/home/dynamodblocal/data"]
+    working_dir: /home/dynamodblocal
+    ports:
+      - "${DYNAMODB_LOCAL_PORT:-8000}:8000"
+    volumes:
+      - dynamodb-local-data:/home/dynamodblocal/data
+
   backend:
     build:
       context: ./backend
     image: financial-rag-backend:local
+    depends_on:
+      - dynamodb-local
     ports:
       - "${SERVER_PORT:-8080}:8080"
     environment:
@@ -11,3 +22,14 @@ services:
       RAG_SERVICE_BASE_URL: ${RAG_SERVICE_BASE_URL:-http://localhost:8001}
       RAG_SERVICE_TIMEOUT: ${RAG_SERVICE_TIMEOUT:-30s}
       TRADING_SERVICE_TARGET: ${TRADING_SERVICE_TARGET:-localhost:50051}
+      REPORT_REPOSITORY_MODE: ${REPORT_REPOSITORY_MODE:-memory}
+      REPORT_QUEUE_MODE: ${REPORT_QUEUE_MODE:-memory}
+      REPORTS_DYNAMODB_TABLE_NAME: ${REPORTS_DYNAMODB_TABLE_NAME:-financial-rag}
+      REPORTS_DYNAMODB_ENDPOINT_URL: ${BACKEND_REPORTS_DYNAMODB_ENDPOINT_URL:-http://dynamodb-local:8000}
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-local}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-local}
+      AWS_EC2_METADATA_DISABLED: ${AWS_EC2_METADATA_DISABLED:-true}
+
+volumes:
+  dynamodb-local-data:

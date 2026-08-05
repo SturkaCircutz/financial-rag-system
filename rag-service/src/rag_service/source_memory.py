@@ -16,6 +16,7 @@ class SourceManifest:
     url: str
     section: str
     content_hash: str
+    metadata: dict[str, str]
 
 
 @dataclass(frozen=True)
@@ -29,6 +30,7 @@ class ChunkPointer:
     section: str
     content_hash: str
     chunk_index: int
+    metadata: dict[str, str]
 
 
 @dataclass(frozen=True)
@@ -63,6 +65,7 @@ def manifest_for(document: EvidenceDocument) -> SourceManifest:
         url=document.url,
         section=document.section,
         content_hash=content_hash(document.text),
+        metadata=dict(document.metadata),
     )
 
 
@@ -77,6 +80,7 @@ def pointer_for(chunk: SourceChunk) -> ChunkPointer:
         section=chunk.section,
         content_hash=chunk.content_hash,
         chunk_index=chunk.chunk_index,
+        metadata=dict(chunk.metadata),
     )
 
 
@@ -92,4 +96,5 @@ def agent_result_for(chunk: SourceChunk) -> AgentResult:
         "section": chunk.section,
         "text": chunk.text,
         "content_hash": chunk.content_hash,
+        "metadata": dict(chunk.metadata),
     }

@@ -14,6 +14,7 @@ class AgentResult(TypedDict):
     section: str
     text: str
     content_hash: str
+    metadata: NotRequired[dict[str, str]]
 
 
 class RetrievedChunk(TypedDict):
@@ -27,6 +28,7 @@ class RetrievedChunk(TypedDict):
     text: str
     content_hash: str
     score: float
+    metadata: NotRequired[dict[str, str]]
 
 
 class TraceEvent(TypedDict):

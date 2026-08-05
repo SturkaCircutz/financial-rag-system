@@ -85,4 +85,5 @@ def to_retrieved_chunk(result: AgentResult, score: float) -> RetrievedChunk:
         "text": result["text"],
         "content_hash": result["content_hash"],
         "score": score,
+        "metadata": result.get("metadata", {}),
     }

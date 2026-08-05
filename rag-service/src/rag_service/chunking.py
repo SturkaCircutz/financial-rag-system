@@ -20,6 +20,7 @@ class SourceChunk:
     text: str
     content_hash: str
     chunk_index: int
+    metadata: dict[str, str]
 
 
 def chunk_documents(
@@ -68,6 +69,7 @@ def chunk_document(
                 text=chunk_text,
                 content_hash=content_hash(chunk_text),
                 chunk_index=chunk_index,
+                metadata=dict(document.metadata),
             )
         )
         if end == len(tokens):

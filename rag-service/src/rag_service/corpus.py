@@ -1,6 +1,7 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from rag_service.models import SourceFilter
+from rag_service.sec_ingestion import IngestedSecDocument, LocalSecFilingIngestor
 
 
 @dataclass(frozen=True)
@@ -12,6 +13,10 @@ class EvidenceDocument:
     url: str
     section: str
     text: str
+    metadata: dict[str, str] = field(default_factory=dict)
+
+
+SEC_INGESTOR = LocalSecFilingIngestor()
 
 
 LOCAL_CORPUS = (
@@ -152,8 +157,24 @@ LOCAL_CORPUS = (
 
 def documents_for(source_type: SourceFilter, tickers: list[str]) -> list[EvidenceDocument]:
     ticker_set = {ticker.upper() for ticker in tickers}
-    return [
+    documents = [
         document
         for document in LOCAL_CORPUS
         if document.source_type == source_type and (document.ticker in ticker_set or document.ticker == "*")
     ]
+    if source_type == SourceFilter.SEC:
+        documents.extend(evidence_document_for_sec_filing(document) for document in SEC_INGESTOR.ingest(tickers))
+    return documents
+
+
+def evidence_document_for_sec_filing(document: IngestedSecDocument) -> EvidenceDocument:
+    return EvidenceDocument(
+        source_id=document.source_id,
+        ticker=document.ticker,
+        source_type=document.source_type,
+        title=document.title,
+        url=document.url,
+        section=document.section,
+        text=document.text,
+        metadata=document.metadata,
+    )
