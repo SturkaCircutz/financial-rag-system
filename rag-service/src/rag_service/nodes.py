@@ -1,5 +1,3 @@
-from rag_service.chunking import chunk_documents
-from rag_service.corpus import documents_for
 from rag_service.models import (
     Citation,
     Diagnostics,
@@ -8,7 +6,10 @@ from rag_service.models import (
     SourceFilter,
 )
 from rag_service.retrieval import rank_agent_results
+from rag_service.source_memory import LocalSourceMemory
 from rag_service.state import AgentResult, RagGraphState, RetrievedChunk, TraceEvent
+
+SOURCE_MEMORY = LocalSourceMemory()
 
 
 def append_trace(state: RagGraphState, node: str, status: str, detail: str) -> list[TraceEvent]:
@@ -48,30 +49,18 @@ def collect_earnings(state: RagGraphState) -> RagGraphState:
 
 
 def collect_source(state: RagGraphState, source_filter: SourceFilter) -> RagGraphState:
-    documents = documents_for(source_filter, state["normalized_tickers"])
-    chunks = chunk_documents(documents)
-    results: list[AgentResult] = [
-        {
-            "source_id": chunk.source_id,
-            "chunk_id": chunk.chunk_id,
-            "source_type": chunk.source_type,
-            "status": "completed",
-            "evidence_id": chunk.chunk_id,
-            "title": chunk.title,
-            "url": chunk.url,
-            "section": chunk.section,
-            "text": chunk.text,
-            "content_hash": chunk.content_hash,
-        }
-        for chunk in chunks
-    ]
+    memory_result = SOURCE_MEMORY.collect(source_filter, state["normalized_tickers"])
+    results: list[AgentResult] = memory_result.chunks
     return {
         "agent_results": [*state.get("agent_results", []), *results],
         "trace": append_trace(
             state,
             f"{source_filter.value.lower()}_agent",
             "completed",
-            f"chunked {len(documents)} local documents into {len(results)} chunks",
+            (
+                f"loaded {len(memory_result.manifests)} source manifests "
+                f"and {len(memory_result.chunk_pointers)} chunk pointers"
+            ),
         ),
     }
 
