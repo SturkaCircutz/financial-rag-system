@@ -20,8 +20,9 @@ def test_generate_report_endpoint_matches_backend_contract():
     assert response.status_code == 200
     body = response.json()
     assert body["summary"]
-    assert len(body["keyFindings"]) == 1
-    assert body["sourceCoverage"]["secChunks"] == 1
+    assert len(body["keyFindings"]) >= 1
+    assert body["sourceCoverage"]["secChunks"] >= 1
     assert body["sourceCoverage"]["newsChunks"] == 0
     assert body["sourceCoverage"]["earningsChunks"] == 0
     assert body["diagnostics"]["ragServiceStatus"] == "completed"
+    assert body["diagnostics"]["mode"] == "local_retrieval"

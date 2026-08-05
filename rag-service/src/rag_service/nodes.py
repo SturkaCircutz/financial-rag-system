@@ -1,3 +1,4 @@
+from rag_service.corpus import documents_for
 from rag_service.models import (
     Citation,
     Diagnostics,
@@ -5,6 +6,7 @@ from rag_service.models import (
     SourceCoverage,
     SourceFilter,
 )
+from rag_service.retrieval import rank_agent_results
 from rag_service.state import AgentResult, RagGraphState, RetrievedChunk, TraceEvent
 
 
@@ -19,7 +21,7 @@ def plan_request(state: RagGraphState) -> RagGraphState:
         "normalized_tickers": [ticker.strip().upper() for ticker in request.tickers if ticker.strip()],
         "source_filters": list(dict.fromkeys(source_filters)),
         "diagnostics": {
-            "mode": "mock",
+            "mode": "local_retrieval",
             "ragServiceStatus": "running",
             "retrievalStatus": "not_started",
             "generationStatus": "not_started",
@@ -45,34 +47,31 @@ def collect_earnings(state: RagGraphState) -> RagGraphState:
 
 
 def collect_source(state: RagGraphState, source_filter: SourceFilter) -> RagGraphState:
-    tickers = ", ".join(state["normalized_tickers"])
-    evidence_id = f"{source_filter.value.lower()}-mock-001"
-    result: AgentResult = {
-        "source_type": source_filter,
-        "status": "completed",
-        "evidence_id": evidence_id,
-        "title": f"{tickers} {source_filter.value} mock evidence",
-        "url": f"https://example.com/{evidence_id}",
-        "text": f"Mock {source_filter.value} evidence for {tickers}.",
-    }
+    documents = documents_for(source_filter, state["normalized_tickers"])
+    results: list[AgentResult] = [
+        {
+            "source_type": document.source_type,
+            "status": "completed",
+            "evidence_id": document.evidence_id,
+            "title": document.title,
+            "url": document.url,
+            "text": document.text,
+        }
+        for document in documents
+    ]
     return {
-        "agent_results": [*state.get("agent_results", []), result],
-        "trace": append_trace(state, f"{source_filter.value.lower()}_agent", "completed", "mock evidence created"),
+        "agent_results": [*state.get("agent_results", []), *results],
+        "trace": append_trace(
+            state,
+            f"{source_filter.value.lower()}_agent",
+            "completed",
+            f"collected {len(results)} local evidence documents",
+        ),
     }
 
 
 def retrieve_chunks(state: RagGraphState) -> RagGraphState:
-    chunks: list[RetrievedChunk] = [
-        {
-            "evidence_id": result["evidence_id"],
-            "source_type": result["source_type"],
-            "title": result["title"],
-            "url": result["url"],
-            "text": result["text"],
-            "score": 1.0 - index * 0.05,
-        }
-        for index, result in enumerate(state.get("agent_results", []))
-    ]
+    chunks = rank_agent_results(state.get("agent_results", []), build_retrieval_query(state))
     diagnostics = {**state.get("diagnostics", {}), "retrievalStatus": "completed"}
     return {
         "retrieved_chunks": chunks,
@@ -116,8 +115,8 @@ def generate_report(state: RagGraphState) -> RagGraphState:
         "generationStatus": "completed",
     }
     response = GenerateReportResponse(
-        summary=f"Mock {request.report_type.value.lower().replace('_', ' ')} generated for {tickers}.",
-        key_findings=[chunk["text"] for chunk in selected_context],
+        summary=build_summary(request.report_type.value, tickers, selected_context),
+        key_findings=build_key_findings(selected_context),
         citations=citations,
         source_coverage=source_coverage(selected_context),
         diagnostics=Diagnostics(**diagnostics),
@@ -127,6 +126,37 @@ def generate_report(state: RagGraphState) -> RagGraphState:
         "diagnostics": diagnostics,
         "trace": append_trace(state, "llm_generation", "completed", "mock report generated"),
     }
+
+
+def build_retrieval_query(state: RagGraphState) -> str:
+    request = state["request"]
+    return " ".join(
+        [
+            *state["normalized_tickers"],
+            request.question,
+            request.report_type.value.lower().replace("_", " "),
+            request.time_horizon,
+        ]
+    )
+
+
+def build_summary(report_type: str, tickers: str, selected_context: list[RetrievedChunk]) -> str:
+    report_label = report_type.lower().replace("_", " ")
+    if not selected_context:
+        return f"Local retrieval {report_label} generated for {tickers} with no matching evidence."
+    return (
+        f"Local retrieval {report_label} generated for {tickers} "
+        f"using {len(selected_context)} ranked evidence chunks."
+    )
+
+
+def build_key_findings(selected_context: list[RetrievedChunk]) -> list[str]:
+    if not selected_context:
+        return ["No local evidence matched the requested tickers and source filters."]
+    return [
+        f"{chunk['source_type'].value} evidence: {chunk['text']}"
+        for chunk in selected_context
+    ]
 
 
 def validate_report(state: RagGraphState) -> RagGraphState:
