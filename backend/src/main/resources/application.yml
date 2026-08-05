@@ -33,3 +33,7 @@ reports:
     mode: ${REPORT_REPOSITORY_MODE:memory}
   queue:
     mode: ${REPORT_QUEUE_MODE:memory}
+  dynamodb:
+    table-name: ${REPORTS_DYNAMODB_TABLE_NAME:financial-rag}
+    region: ${AWS_REGION:us-east-1}
+    endpoint-url: ${REPORTS_DYNAMODB_ENDPOINT_URL:http://localhost:8000}
