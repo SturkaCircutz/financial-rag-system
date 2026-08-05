@@ -12,7 +12,8 @@ public final class RagServiceContract {
             List<String> tickers,
             String question,
             String reportType,
-            String timeHorizon) {
+            String timeHorizon,
+            List<String> sourceFilters) {
     }
 
     public record GenerateReportResponse(

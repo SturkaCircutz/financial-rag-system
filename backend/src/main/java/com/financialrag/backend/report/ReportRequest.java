@@ -10,5 +10,6 @@ public record ReportRequest(
         @NotEmpty List<@NotBlank String> tickers,
         @NotBlank String question,
         @NotNull ReportType reportType,
-        String timeHorizon) {
+        String timeHorizon,
+        List<SourceFilter> sourceFilters) {
 }

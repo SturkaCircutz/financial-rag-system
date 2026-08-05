@@ -3,6 +3,7 @@ package com.financialrag.backend.report;
 import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -28,6 +29,7 @@ public class ReportService {
     public ReportResponse createReport(ReportRequest request) {
         List<String> tickers = normalizeTickers(request.tickers());
         String timeHorizon = normalizeTimeHorizon(request.timeHorizon());
+        List<SourceFilter> sourceFilters = normalizeSourceFilters(request.sourceFilters());
         String question = request.question().trim();
         String reportId = buildReportId();
         Instant createdAt = Instant.now();
@@ -38,11 +40,19 @@ public class ReportService {
                 request.reportType(),
                 question,
                 timeHorizon,
+                sourceFilters,
                 createdAt);
 
         reports.put(reportId, queuedResponse);
         reportExecutor.execute(
-                () -> generateReport(reportId, tickers, request.reportType(), question, timeHorizon, createdAt));
+                () -> generateReport(
+                        reportId,
+                        tickers,
+                        request.reportType(),
+                        question,
+                        timeHorizon,
+                        sourceFilters,
+                        createdAt));
         return queuedResponse;
     }
 
@@ -60,10 +70,19 @@ public class ReportService {
             ReportType reportType,
             String question,
             String timeHorizon,
+            List<SourceFilter> sourceFilters,
             Instant createdAt) {
         reports.put(
                 reportId,
-                pendingResponse(reportId, ReportStatus.RUNNING, tickers, reportType, question, timeHorizon, createdAt));
+                pendingResponse(
+                        reportId,
+                        ReportStatus.RUNNING,
+                        tickers,
+                        reportType,
+                        question,
+                        timeHorizon,
+                        sourceFilters,
+                        createdAt));
 
         try {
             RagServiceContract.GenerateReportResponse ragResponse = ragClient.generateReport(
@@ -71,15 +90,24 @@ public class ReportService {
                             tickers,
                             question,
                             reportType.name(),
-                            timeHorizon));
+                            timeHorizon,
+                            mapSourceFilters(sourceFilters)));
 
             reports.put(
                     reportId,
-                    completedResponse(reportId, tickers, reportType, question, timeHorizon, createdAt, ragResponse));
+                    completedResponse(
+                            reportId,
+                            tickers,
+                            reportType,
+                            question,
+                            timeHorizon,
+                            sourceFilters,
+                            createdAt,
+                            ragResponse));
         } catch (RuntimeException exception) {
             reports.put(
                     reportId,
-                    failedResponse(reportId, tickers, reportType, question, timeHorizon, createdAt));
+                    failedResponse(reportId, tickers, reportType, question, timeHorizon, sourceFilters, createdAt));
         }
     }
 
@@ -88,6 +116,27 @@ public class ReportService {
                 .map(ticker -> ticker.trim().toUpperCase(Locale.ROOT))
                 .filter(ticker -> !ticker.isBlank())
                 .distinct()
+                .toList();
+    }
+
+    private static List<SourceFilter> normalizeSourceFilters(List<SourceFilter> sourceFilters) {
+        if (sourceFilters == null || sourceFilters.isEmpty()) {
+            return SourceFilter.defaultFilters();
+        }
+
+        List<SourceFilter> normalizedSourceFilters = sourceFilters.stream()
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+        if (normalizedSourceFilters.isEmpty()) {
+            return SourceFilter.defaultFilters();
+        }
+        return normalizedSourceFilters;
+    }
+
+    private static List<String> mapSourceFilters(List<SourceFilter> sourceFilters) {
+        return sourceFilters.stream()
+                .map(SourceFilter::name)
                 .toList();
     }
 
@@ -123,6 +172,7 @@ public class ReportService {
             ReportType reportType,
             String question,
             String timeHorizon,
+            List<SourceFilter> sourceFilters,
             Instant createdAt) {
         return new ReportResponse(
                 reportId,
@@ -131,6 +181,7 @@ public class ReportService {
                 reportType,
                 question,
                 timeHorizon,
+                sourceFilters,
                 "",
                 List.of(),
                 List.of(),
@@ -145,6 +196,7 @@ public class ReportService {
             ReportType reportType,
             String question,
             String timeHorizon,
+            List<SourceFilter> sourceFilters,
             Instant createdAt,
             RagServiceContract.GenerateReportResponse ragResponse) {
         return new ReportResponse(
@@ -154,6 +206,7 @@ public class ReportService {
                 reportType,
                 question,
                 timeHorizon,
+                sourceFilters,
                 ragResponse.summary(),
                 ragResponse.keyFindings(),
                 mapCitations(ragResponse.citations()),
@@ -168,6 +221,7 @@ public class ReportService {
             ReportType reportType,
             String question,
             String timeHorizon,
+            List<SourceFilter> sourceFilters,
             Instant createdAt) {
         return new ReportResponse(
                 reportId,
@@ -176,6 +230,7 @@ public class ReportService {
                 reportType,
                 question,
                 timeHorizon,
+                sourceFilters,
                 "Report generation failed before completion.",
                 List.of(),
                 List.of(),

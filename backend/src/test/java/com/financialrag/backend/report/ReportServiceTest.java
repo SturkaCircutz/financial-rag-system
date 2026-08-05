@@ -20,13 +20,18 @@ class ReportServiceTest {
                 List.of("nvda"),
                 "What changed in the latest filing?",
                 ReportType.FILING_ANALYSIS,
-                "30d"));
+                "30d",
+                null));
 
         ReportResponse storedReport = reportService.getReport(createdReport.reportId());
 
         assertThat(createdReport.status()).isEqualTo(ReportStatus.QUEUED);
         assertThat(storedReport.status()).isEqualTo(ReportStatus.FAILED);
         assertThat(storedReport.tickers()).containsExactly("NVDA");
+        assertThat(storedReport.sourceFilters()).containsExactly(
+                SourceFilter.SEC,
+                SourceFilter.NEWS,
+                SourceFilter.EARNINGS);
         assertThat(storedReport.summary()).contains("failed");
         assertThat(storedReport.diagnostics().generationStatus()).isEqualTo("failed");
     }

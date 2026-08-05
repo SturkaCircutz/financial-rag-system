@@ -40,7 +40,8 @@ class ReportControllerTest {
                                   "tickers": ["nvda"],
                                   "question": "What are the latest risk factors?",
                                   "reportType": "COMPANY_BRIEF",
-                                  "timeHorizon": "30d"
+                                  "timeHorizon": "30d",
+                                  "sourceFilters": ["SEC", "NEWS"]
                                 }
                                 """))
                 .andExpect(status().isCreated())
@@ -51,6 +52,8 @@ class ReportControllerTest {
                 .andExpect(jsonPath("$.reportType", equalTo("COMPANY_BRIEF")))
                 .andExpect(jsonPath("$.question", equalTo("What are the latest risk factors?")))
                 .andExpect(jsonPath("$.timeHorizon", equalTo("30d")))
+                .andExpect(jsonPath("$.sourceFilters[0]", equalTo("SEC")))
+                .andExpect(jsonPath("$.sourceFilters[1]", equalTo("NEWS")))
                 .andExpect(jsonPath("$.summary", equalTo("")))
                 .andExpect(jsonPath("$.keyFindings", hasSize(0)))
                 .andExpect(jsonPath("$.citations", hasSize(0)))
@@ -89,6 +92,10 @@ class ReportControllerTest {
         assertThat(completedReport.path("tickers").get(1).asText()).isEqualTo("AAPL");
         assertThat(completedReport.path("reportType").asText()).isEqualTo("COMPARATIVE");
         assertThat(completedReport.path("timeHorizon").asText()).isEqualTo("30d");
+        assertThat(completedReport.path("sourceFilters")).hasSize(3);
+        assertThat(completedReport.path("sourceFilters").get(0).asText()).isEqualTo("SEC");
+        assertThat(completedReport.path("sourceFilters").get(1).asText()).isEqualTo("NEWS");
+        assertThat(completedReport.path("sourceFilters").get(2).asText()).isEqualTo("EARNINGS");
         assertThat(completedReport.path("keyFindings")).hasSize(3);
         assertThat(completedReport.path("diagnostics").path("mode").asText()).isEqualTo("stub");
         assertThat(completedReport.path("diagnostics").path("ragServiceStatus").asText()).isEqualTo("stub_client");

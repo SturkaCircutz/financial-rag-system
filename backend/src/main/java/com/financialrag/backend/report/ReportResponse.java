@@ -10,6 +10,7 @@ public record ReportResponse(
         ReportType reportType,
         String question,
         String timeHorizon,
+        List<SourceFilter> sourceFilters,
         String summary,
         List<String> keyFindings,
         List<Citation> citations,

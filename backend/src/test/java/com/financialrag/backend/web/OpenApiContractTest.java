@@ -29,6 +29,8 @@ class OpenApiContractTest {
                 .andExpect(jsonPath("$['paths']['/api/v1/ready']['get']").exists())
                 .andExpect(jsonPath("$['components']['schemas']['ApiError']", notNullValue()))
                 .andExpect(jsonPath("$['components']['schemas']['ReportRequest']", notNullValue()))
-                .andExpect(jsonPath("$['components']['schemas']['ReportResponse']", notNullValue()));
+                .andExpect(jsonPath("$['components']['schemas']['ReportResponse']", notNullValue()))
+                .andExpect(jsonPath("$['components']['schemas']['ReportRequest']['properties']['sourceFilters']", notNullValue()))
+                .andExpect(jsonPath("$['components']['schemas']['ReportResponse']['properties']['sourceFilters']", notNullValue()));
     }
 }
