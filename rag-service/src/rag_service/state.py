@@ -4,20 +4,28 @@ from rag_service.models import GenerateReportRequest, GenerateReportResponse, So
 
 
 class AgentResult(TypedDict):
+    source_id: str
+    chunk_id: str
     source_type: SourceFilter
     status: str
     evidence_id: str
     title: str
     url: str
+    section: str
     text: str
+    content_hash: str
 
 
 class RetrievedChunk(TypedDict):
+    source_id: str
+    chunk_id: str
     evidence_id: str
     source_type: SourceFilter
     title: str
     url: str
+    section: str
     text: str
+    content_hash: str
     score: float
 
 

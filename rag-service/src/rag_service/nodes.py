@@ -1,3 +1,4 @@
+from rag_service.chunking import chunk_documents
 from rag_service.corpus import documents_for
 from rag_service.models import (
     Citation,
@@ -48,16 +49,21 @@ def collect_earnings(state: RagGraphState) -> RagGraphState:
 
 def collect_source(state: RagGraphState, source_filter: SourceFilter) -> RagGraphState:
     documents = documents_for(source_filter, state["normalized_tickers"])
+    chunks = chunk_documents(documents)
     results: list[AgentResult] = [
         {
-            "source_type": document.source_type,
+            "source_id": chunk.source_id,
+            "chunk_id": chunk.chunk_id,
+            "source_type": chunk.source_type,
             "status": "completed",
-            "evidence_id": document.evidence_id,
-            "title": document.title,
-            "url": document.url,
-            "text": document.text,
+            "evidence_id": chunk.chunk_id,
+            "title": chunk.title,
+            "url": chunk.url,
+            "section": chunk.section,
+            "text": chunk.text,
+            "content_hash": chunk.content_hash,
         }
-        for document in documents
+        for chunk in chunks
     ]
     return {
         "agent_results": [*state.get("agent_results", []), *results],
@@ -65,7 +71,7 @@ def collect_source(state: RagGraphState, source_filter: SourceFilter) -> RagGrap
             state,
             f"{source_filter.value.lower()}_agent",
             "completed",
-            f"collected {len(results)} local evidence documents",
+            f"chunked {len(documents)} local documents into {len(results)} chunks",
         ),
     }
 
@@ -154,7 +160,7 @@ def build_key_findings(selected_context: list[RetrievedChunk]) -> list[str]:
     if not selected_context:
         return ["No local evidence matched the requested tickers and source filters."]
     return [
-        f"{chunk['source_type'].value} evidence: {chunk['text']}"
+        f"{chunk['source_type'].value} evidence ({chunk['section']}): {chunk['text']}"
         for chunk in selected_context
     ]
 

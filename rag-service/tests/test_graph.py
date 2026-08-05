@@ -66,6 +66,6 @@ def test_graph_ranks_question_relevant_evidence_first():
         )
     )
 
-    assert response.citations[0].evidence_id == "nvda-sec-risk-001"
+    assert response.citations[0].evidence_id == "nvda-sec-risk-001#chunk-001"
     assert "export controls" in response.key_findings[0]
     assert response.diagnostics.mode == "local_retrieval"

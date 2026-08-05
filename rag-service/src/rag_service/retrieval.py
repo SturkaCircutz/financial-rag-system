@@ -12,7 +12,7 @@ def rank_agent_results(agent_results: list[AgentResult], query: str) -> list[Ret
         return []
 
     tokenized_documents = [
-        tokenize(f"{result['title']} {result['text']}")
+        tokenize(f"{result['title']} {result['section']} {result['text']}")
         for result in agent_results
     ]
     query_terms = Counter(tokenize(query))
@@ -75,10 +75,14 @@ def bm25_score(
 
 def to_retrieved_chunk(result: AgentResult, score: float) -> RetrievedChunk:
     return {
+        "source_id": result["source_id"],
+        "chunk_id": result["chunk_id"],
         "evidence_id": result["evidence_id"],
         "source_type": result["source_type"],
         "title": result["title"],
         "url": result["url"],
+        "section": result["section"],
         "text": result["text"],
+        "content_hash": result["content_hash"],
         "score": score,
     }
