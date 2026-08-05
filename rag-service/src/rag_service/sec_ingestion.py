@@ -1,5 +1,6 @@
 import re
 from dataclasses import dataclass
+from pathlib import Path
 
 from rag_service.models import SourceFilter
 
@@ -19,7 +20,7 @@ class LocalSecFiling:
     filing_date: str
     report_period: str
     url: str
-    text: str
+    file_path: str
 
 
 @dataclass(frozen=True)
@@ -54,15 +55,7 @@ LOCAL_SEC_FILINGS = (
         filing_date="2026-05-28",
         report_period="2026-04-26",
         url="https://example.com/sec/nvda/local-10q",
-        text="""
-ITEM 2. Management's Discussion and Analysis
-Local SEC filing sample says NVDA management discussed data center demand, product transition timing,
-inventory purchase commitments, supplier capacity, and capital allocation for AI infrastructure.
-
-ITEM 1A. Risk Factors
-Local SEC filing sample says NVDA risk review should monitor customer concentration, manufacturing
-capacity, export licensing uncertainty, and rapid shifts in accelerator demand.
-""",
+        file_path="NVDA/local-10q.txt",
     ),
     LocalSecFiling(
         ticker="MSFT",
@@ -71,20 +64,13 @@ capacity, export licensing uncertainty, and rapid shifts in accelerator demand.
         filing_date="2026-07-30",
         report_period="2026-06-30",
         url="https://example.com/sec/msft/local-10k",
-        text="""
-ITEM 1. Business
-Local SEC filing sample says MSFT business discussion focused on cloud infrastructure, AI services,
-productivity software, gaming, security products, and LinkedIn.
-
-ITEM 1A. Risk Factors
-Local SEC filing sample says MSFT risk review should monitor cybersecurity, cloud capacity spending,
-regulation, competition, and availability of advanced AI infrastructure.
-""",
+        file_path="MSFT/local-10k.txt",
     ),
 )
 
 
 SECTION_HEADER_PATTERN = re.compile(r"^ITEM\s+[0-9A-Z]+\.?\s+(.+)$", re.IGNORECASE)
+SEC_DATA_ROOT = Path(__file__).resolve().parents[2] / "data" / "sec"
 
 
 class TickerCikLookup:
@@ -100,9 +86,11 @@ class LocalSecFilingIngestor:
         self,
         filings: tuple[LocalSecFiling, ...] = LOCAL_SEC_FILINGS,
         cik_lookup: TickerCikLookup | None = None,
+        data_root: Path = SEC_DATA_ROOT,
     ):
         self._filings = filings
         self._cik_lookup = cik_lookup or TickerCikLookup()
+        self._data_root = data_root
 
     def ingest(self, tickers: list[str], form_types: list[str] | None = None) -> list[IngestedSecDocument]:
         ticker_set = {ticker.strip().upper() for ticker in tickers if ticker.strip()}
@@ -119,6 +107,7 @@ class LocalSecFilingIngestor:
         if company is None:
             return []
 
+        filing_text = self._read_filing_text(filing)
         return [
             IngestedSecDocument(
                 source_id=source_id_for(filing, section.name),
@@ -135,10 +124,18 @@ class LocalSecFilingIngestor:
                     "form_type": filing.form_type,
                     "filing_date": filing.filing_date,
                     "report_period": filing.report_period,
+                    "source_path": filing.file_path,
                 },
             )
-            for section in parse_sections(filing.text)
+            for section in parse_sections(filing_text)
         ]
+
+    def _read_filing_text(self, filing: LocalSecFiling) -> str:
+        path = self._data_root / filing.file_path
+        try:
+            return path.read_text(encoding="utf-8")
+        except FileNotFoundError as exc:
+            raise FileNotFoundError(f"Local SEC filing file not found: {path}") from exc
 
 
 def parse_sections(text: str) -> list[SecSection]:

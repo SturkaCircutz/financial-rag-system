@@ -38,6 +38,7 @@ def test_local_sec_ingestor_returns_section_documents_with_metadata():
     assert risk_document.metadata["cik"] == "0001045810"
     assert risk_document.metadata["form_type"] == "10-Q"
     assert risk_document.metadata["accession_number"] == "local-nvda-2026q1-10q"
+    assert risk_document.metadata["source_path"] == "NVDA/local-10q.txt"
     assert "export licensing uncertainty" in risk_document.text
 
 

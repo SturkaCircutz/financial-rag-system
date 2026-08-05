@@ -1,0 +1,7 @@
+ITEM 2. Management's Discussion and Analysis
+Local SEC filing sample says NVDA management discussed data center demand, product transition timing,
+inventory purchase commitments, supplier capacity, and capital allocation for AI infrastructure.
+
+ITEM 1A. Risk Factors
+Local SEC filing sample says NVDA risk review should monitor customer concentration, manufacturing
+capacity, export licensing uncertainty, and rapid shifts in accelerator demand.

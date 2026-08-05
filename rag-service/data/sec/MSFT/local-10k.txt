@@ -1,0 +1,7 @@
+ITEM 1. Business
+Local SEC filing sample says MSFT business discussion focused on cloud infrastructure, AI services,
+productivity software, gaming, security products, and LinkedIn.
+
+ITEM 1A. Risk Factors
+Local SEC filing sample says MSFT risk review should monitor cybersecurity, cloud capacity spending,
+regulation, competition, and availability of advanced AI infrastructure.
