@@ -1,0 +1,68 @@
+{
+  "questions": [
+    {
+      "question_id": "nvda-sec-export-risk",
+      "tickers": ["NVDA"],
+      "question": "Which NVDA filing risk factors mention export controls?",
+      "report_type": "FILING_ANALYSIS",
+      "source_filters": ["SEC"],
+      "expected_evidence_ids": [
+        "sec-nvda-10q-risk-factors#chunk-001",
+        "sec-nvda-10k-risk-factors#chunk-001"
+      ],
+      "preferred_evidence_order": [
+        "sec-nvda-10q-risk-factors#chunk-001",
+        "sec-nvda-10k-risk-factors#chunk-001"
+      ],
+      "required_source_types": ["SEC"],
+      "metadata_expectations": {
+        "ticker": ["NVDA"],
+        "source_type": ["SEC"],
+        "form_type": ["10-Q", "10-K"],
+        "section": ["Risk Factors"]
+      }
+    },
+    {
+      "question_id": "nvda-news-export-controls",
+      "tickers": ["NVDA"],
+      "question": "Which recent news item discusses export-control rule changes and China demand?",
+      "report_type": "EVENT_DRIVEN",
+      "source_filters": ["NEWS"],
+      "expected_evidence_ids": [
+        "news-nvda-export-control-update#chunk-001"
+      ],
+      "preferred_evidence_order": [
+        "news-nvda-export-control-update#chunk-001"
+      ],
+      "required_source_types": ["NEWS"],
+      "metadata_expectations": {
+        "ticker": ["NVDA"],
+        "source_type": ["NEWS"],
+        "article_type": ["breaking news"],
+        "publisher": ["Local Market Wire"]
+      }
+    },
+    {
+      "question_id": "msft-earnings-capex",
+      "tickers": ["MSFT"],
+      "question": "Which MSFT earnings speaker discussed capital expenditure priorities?",
+      "report_type": "EARNINGS_BRIEF",
+      "source_filters": ["EARNINGS"],
+      "expected_evidence_ids": [
+        "earnings-msft-2026-q4-capital-expenditure#chunk-001"
+      ],
+      "preferred_evidence_order": [
+        "earnings-msft-2026-q4-capital-expenditure#chunk-001"
+      ],
+      "required_source_types": ["EARNINGS"],
+      "metadata_expectations": {
+        "ticker": ["MSFT"],
+        "source_type": ["EARNINGS"],
+        "fiscal_quarter": ["Q4"],
+        "fiscal_year": ["2026"],
+        "speaker": ["Amy Hood"],
+        "topic": ["Capital Expenditure"]
+      }
+    }
+  ]
+}
