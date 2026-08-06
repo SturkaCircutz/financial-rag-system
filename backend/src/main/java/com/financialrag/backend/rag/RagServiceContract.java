@@ -2,6 +2,7 @@
 package com.financialrag.backend.rag;
 
 import java.util.List;
+import java.util.Map;
 
 public final class RagServiceContract {
 
@@ -28,7 +29,9 @@ public final class RagServiceContract {
             String evidenceId,
             String sourceType,
             String title,
-            String url) {
+            String url,
+            String section,
+            Map<String, String> sourceMetadata) {
     }
 
     public record SourceCoverage(

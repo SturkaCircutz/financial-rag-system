@@ -101,6 +101,8 @@ def generate_report(state: RagGraphState) -> RagGraphState:
             source_type=chunk["source_type"],
             title=chunk["title"],
             url=chunk["url"],
+            section=chunk["section"],
+            source_metadata=chunk.get("metadata", {}),
         )
         for chunk in selected_context
     ]

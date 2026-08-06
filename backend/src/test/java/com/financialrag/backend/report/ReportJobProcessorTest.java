@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
 import com.financialrag.backend.rag.RagClient;
@@ -27,7 +28,9 @@ class ReportJobProcessorTest {
                             "sec-001",
                             "SEC",
                             "SEC evidence",
-                            "https://example.com/sec-001")),
+                            "https://example.com/sec-001",
+                            "Risk Factors",
+                            Map.of("cik", "0001045810", "form_type", "10-Q"))),
                     new RagServiceContract.SourceCoverage(1, 1, 0),
                     new RagServiceContract.Diagnostics("mock", "completed", "completed", "completed"));
         };
@@ -43,6 +46,10 @@ class ReportJobProcessorTest {
         assertThat(storedReport.summary()).isEqualTo("Generated report summary.");
         assertThat(storedReport.keyFindings()).containsExactly("SEC finding.", "News finding.");
         assertThat(storedReport.citations()).hasSize(1);
+        assertThat(storedReport.citations().getFirst().section()).isEqualTo("Risk Factors");
+        assertThat(storedReport.citations().getFirst().sourceMetadata())
+                .containsEntry("cik", "0001045810")
+                .containsEntry("form_type", "10-Q");
         assertThat(storedReport.sourceCoverage().secChunks()).isEqualTo(1);
         assertThat(storedReport.sourceCoverage().newsChunks()).isEqualTo(1);
         assertThat(storedReport.sourceCoverage().earningsChunks()).isZero();

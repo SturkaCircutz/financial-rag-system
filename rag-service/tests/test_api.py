@@ -26,3 +26,8 @@ def test_generate_report_endpoint_matches_backend_contract():
     assert body["sourceCoverage"]["earningsChunks"] == 0
     assert body["diagnostics"]["ragServiceStatus"] == "completed"
     assert body["diagnostics"]["mode"] == "local_retrieval"
+    assert any(
+        citation["section"] == "Risk Factors"
+        and citation["sourceMetadata"].get("form_type") == "10-Q"
+        for citation in body["citations"]
+    )

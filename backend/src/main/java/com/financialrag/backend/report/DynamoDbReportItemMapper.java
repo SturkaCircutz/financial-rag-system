@@ -93,9 +93,21 @@ final class DynamoDbReportItemMapper {
                                         "evidenceId", stringValue(citation.evidenceId()),
                                         "sourceType", stringValue(citation.sourceType()),
                                         "title", stringValue(citation.title()),
-                                        "url", stringValue(citation.url())))
+                                        "url", stringValue(citation.url()),
+                                        "section", stringValue(citation.section()),
+                                        "sourceMetadata", stringMapValue(citation.sourceMetadata())))
                                 .build())
                         .toList())
+                .build();
+    }
+
+    private static AttributeValue stringMapValue(Map<String, String> values) {
+        Map<String, String> safeValues = values == null ? Map.of() : values;
+        return AttributeValue.builder()
+                .m(safeValues.entrySet().stream()
+                        .collect(java.util.stream.Collectors.toMap(
+                                Map.Entry::getKey,
+                                entry -> stringValue(entry.getValue()))))
                 .build();
     }
 
@@ -142,9 +154,30 @@ final class DynamoDbReportItemMapper {
                             citation.get("evidenceId").s(),
                             citation.get("sourceType").s(),
                             citation.get("title").s(),
-                            citation.get("url").s());
+                            citation.get("url").s(),
+                            optionalStringAttribute(citation, "section"),
+                            stringMapAttribute(citation, "sourceMetadata"));
                 })
                 .toList();
+    }
+
+    private static String optionalStringAttribute(Map<String, AttributeValue> item, String name) {
+        AttributeValue value = item.get(name);
+        if (value == null || value.s() == null) {
+            return "";
+        }
+        return value.s();
+    }
+
+    private static Map<String, String> stringMapAttribute(Map<String, AttributeValue> item, String name) {
+        AttributeValue value = item.get(name);
+        if (value == null || value.m() == null) {
+            return Map.of();
+        }
+        return value.m().entrySet().stream()
+                .collect(java.util.stream.Collectors.toMap(
+                        Map.Entry::getKey,
+                        entry -> entry.getValue().s()));
     }
 
     private static SourceCoverage sourceCoverageAttribute(Map<String, AttributeValue> item, String name) {

@@ -8,6 +8,7 @@ import static org.springframework.test.web.client.match.MockRestRequestMatchers.
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
 import java.util.List;
+import java.util.Map;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpMethod;
@@ -48,7 +49,12 @@ class HttpRagClientTest {
                               "evidenceId": "sec-mock-001",
                               "sourceType": "SEC",
                               "title": "NVDA SEC mock evidence",
-                              "url": "https://example.com/sec-mock-001"
+                              "url": "https://example.com/sec-mock-001",
+                              "section": "Risk Factors",
+                              "sourceMetadata": {
+                                "cik": "0001045810",
+                                "form_type": "10-Q"
+                              }
                             }
                           ],
                           "sourceCoverage": {
@@ -76,6 +82,9 @@ class HttpRagClientTest {
         assertThat(response.summary()).contains("NVDA");
         assertThat(response.keyFindings()).hasSize(2);
         assertThat(response.citations()).hasSize(1);
+        assertThat(response.citations().getFirst().section()).isEqualTo("Risk Factors");
+        assertThat(response.citations().getFirst().sourceMetadata())
+                .containsAllEntriesOf(Map.of("cik", "0001045810", "form_type", "10-Q"));
         assertThat(response.sourceCoverage().secChunks()).isEqualTo(1);
         assertThat(response.sourceCoverage().newsChunks()).isEqualTo(1);
         assertThat(response.sourceCoverage().earningsChunks()).isZero();

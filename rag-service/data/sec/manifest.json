@@ -1,0 +1,22 @@
+{
+  "filings": [
+    {
+      "ticker": "NVDA",
+      "accession_number": "local-nvda-2026q1-10q",
+      "form_type": "10-Q",
+      "filing_date": "2026-05-28",
+      "report_period": "2026-04-26",
+      "url": "https://example.com/sec/nvda/local-10q",
+      "file_path": "NVDA/local-10q.txt"
+    },
+    {
+      "ticker": "MSFT",
+      "accession_number": "local-msft-2026-10k",
+      "form_type": "10-K",
+      "filing_date": "2026-07-30",
+      "report_period": "2026-06-30",
+      "url": "https://example.com/sec/msft/local-10k",
+      "file_path": "MSFT/local-10k.txt"
+    }
+  ]
+}

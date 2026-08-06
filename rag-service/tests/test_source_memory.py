@@ -18,6 +18,10 @@ def test_local_source_memory_returns_manifests_pointers_and_chunks():
     assert result.chunk_pointers[0].content_hash == result.chunks[0]["content_hash"]
     assert not hasattr(result.chunk_pointers[0], "text")
 
+    sec_pointer = next(pointer for pointer in result.chunk_pointers if pointer.source_id.startswith("sec-nvda-10q"))
+    assert sec_pointer.metadata["cik"] == "0001045810"
+    assert sec_pointer.metadata["form_type"] == "10-Q"
+
 
 def test_local_source_memory_keeps_source_filters_separate():
     source_memory = LocalSourceMemory()

@@ -69,3 +69,24 @@ def test_graph_ranks_question_relevant_evidence_first():
     assert response.citations[0].evidence_id == "nvda-sec-risk-001#chunk-001"
     assert "export controls" in response.key_findings[0]
     assert response.diagnostics.mode == "local_retrieval"
+
+
+def test_graph_renders_sec_metadata_in_citations():
+    response = generate_report_from_graph(
+        GenerateReportRequest(
+            tickers=["nvda"],
+            question="Which filing discusses export licensing uncertainty?",
+            report_type=ReportType.FILING_ANALYSIS,
+            source_filters=[SourceFilter.SEC],
+        )
+    )
+
+    sec_citation = next(
+        citation
+        for citation in response.citations
+        if citation.source_metadata.get("accession_number") == "local-nvda-2026q1-10q"
+    )
+
+    assert sec_citation.section == "Risk Factors"
+    assert sec_citation.source_metadata["cik"] == "0001045810"
+    assert sec_citation.source_metadata["form_type"] == "10-Q"

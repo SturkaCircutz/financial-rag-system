@@ -46,6 +46,8 @@ class Citation(ContractModel):
     source_type: SourceFilter
     title: str
     url: str
+    section: str
+    source_metadata: dict[str, str] = Field(default_factory=dict)
 
 
 class SourceCoverage(ContractModel):

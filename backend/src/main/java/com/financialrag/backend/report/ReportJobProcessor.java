@@ -51,7 +51,9 @@ public class ReportJobProcessor {
                         citation.evidenceId(),
                         citation.sourceType(),
                         citation.title(),
-                        citation.url()))
+                        citation.url(),
+                        citation.section(),
+                        citation.sourceMetadata()))
                 .toList();
     }
 
