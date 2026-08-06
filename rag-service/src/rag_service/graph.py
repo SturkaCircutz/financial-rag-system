@@ -57,9 +57,12 @@ def build_graph():
     return graph.compile()
 
 
+def generate_report_state(request: GenerateReportRequest) -> RagGraphState:
+    return build_graph().invoke({"request": request})
+
+
 def generate_report_from_graph(request: GenerateReportRequest) -> GenerateReportResponse:
-    final_state = build_graph().invoke({"request": request})
-    return final_state["response"]
+    return generate_report_state(request)["response"]
 
 
 def route_sec(state: RagGraphState) -> str:

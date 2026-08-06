@@ -14,12 +14,13 @@ services:
     image: financial-rag-backend:local
     depends_on:
       - dynamodb-local
+      - rag-service
     ports:
       - "${SERVER_PORT:-8080}:8080"
     environment:
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-local}
-      RAG_SERVICE_MODE: ${RAG_SERVICE_MODE:-stub}
-      RAG_SERVICE_BASE_URL: ${RAG_SERVICE_BASE_URL:-http://localhost:8001}
+      RAG_SERVICE_MODE: ${RAG_SERVICE_MODE:-http}
+      RAG_SERVICE_BASE_URL: ${RAG_SERVICE_BASE_URL:-http://rag-service:8001}
       RAG_SERVICE_TIMEOUT: ${RAG_SERVICE_TIMEOUT:-30s}
       TRADING_SERVICE_TARGET: ${TRADING_SERVICE_TARGET:-localhost:50051}
       REPORT_REPOSITORY_MODE: ${REPORT_REPOSITORY_MODE:-memory}
@@ -31,5 +32,19 @@ services:
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-local}
       AWS_EC2_METADATA_DISABLED: ${AWS_EC2_METADATA_DISABLED:-true}
 
+  rag-service:
+    build:
+      context: ./rag-service
+    image: financial-rag-service:local
+    ports:
+      - "${RAG_SERVICE_PORT:-8001}:8001"
+    environment:
+      RAG_OPS_ENABLE_CACHE: ${RAG_OPS_ENABLE_CACHE:-true}
+      RAG_OPS_RATE_LIMIT_PER_MINUTE: ${RAG_OPS_RATE_LIMIT_PER_MINUTE:-120}
+      RAG_OPS_RETENTION_DAYS: ${RAG_OPS_RETENTION_DAYS:-30}
+    volumes:
+      - rag-processed-data:/app/data/processed
+
 volumes:
   dynamodb-local-data:
+  rag-processed-data:

@@ -10,6 +10,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import com.financialrag.backend.rag.RagClient;
 import com.financialrag.backend.rag.RagServiceContract;
 import org.junit.jupiter.api.Test;
+import org.slf4j.MDC;
 
 class ReportJobProcessorTest {
 
@@ -19,8 +20,10 @@ class ReportJobProcessorTest {
         ReportResponse queuedReport = queuedReport(List.of(SourceFilter.SEC, SourceFilter.NEWS));
         reportRepository.save(queuedReport);
         AtomicReference<RagServiceContract.GenerateReportRequest> capturedRequest = new AtomicReference<>();
+        AtomicReference<String> capturedRequestId = new AtomicReference<>();
         RagClient ragClient = request -> {
             capturedRequest.set(request);
+            capturedRequestId.set(MDC.get("requestId"));
             return new RagServiceContract.GenerateReportResponse(
                     "Generated report summary.",
                     List.of("SEC finding.", "News finding."),
@@ -36,10 +39,11 @@ class ReportJobProcessorTest {
         };
         ReportJobProcessor reportJobProcessor = new ReportJobProcessor(reportRepository, ragClient);
 
-        reportJobProcessor.process(new ReportJob(queuedReport.reportId()));
+        reportJobProcessor.process(new ReportJob(queuedReport.reportId(), "request-processor-test"));
 
         ReportResponse storedReport = reportRepository.findById(queuedReport.reportId()).orElseThrow();
         assertThat(capturedRequest.get().tickers()).containsExactly("NVDA");
+        assertThat(capturedRequestId.get()).isEqualTo("request-processor-test");
         assertThat(capturedRequest.get().reportType()).isEqualTo("FILING_ANALYSIS");
         assertThat(capturedRequest.get().sourceFilters()).containsExactly("SEC", "NEWS");
         assertThat(storedReport.status()).isEqualTo(ReportStatus.COMPLETED);

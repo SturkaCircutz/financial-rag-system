@@ -1,0 +1,19 @@
+version: 1
+scope: local-first
+sources:
+  sec:
+    refresh_interval: manual-or-daily
+    retained_raw_days: 30
+    idempotency_key: accession_number
+  news:
+    refresh_interval: hourly-when-provider-enabled
+    retained_raw_days: 14
+    idempotency_key: canonical_url
+  earnings:
+    refresh_interval: after-earnings-events
+    retained_raw_days: 90
+    idempotency_key: source_id
+operations:
+  backfill_command: scripts/rag-backfill.sh
+  reindex_command: scripts/rag-reindex.sh --clear
+  retention_command: scripts/rag-retention.sh --retention-days 30

@@ -6,6 +6,7 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.UUID;
 
+import org.slf4j.MDC;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -37,7 +38,7 @@ public class ReportService {
                 createdAt);
 
         reportRepository.save(queuedResponse);
-        reportJobQueue.enqueue(new ReportJob(reportId));
+        reportJobQueue.enqueue(new ReportJob(reportId, currentRequestId()));
         return queuedResponse;
     }
 
@@ -103,5 +104,13 @@ public class ReportService {
 
     private static String buildReportId() {
         return "report-" + UUID.randomUUID();
+    }
+
+    private static String currentRequestId() {
+        String requestId = MDC.get("requestId");
+        if (requestId == null || requestId.isBlank()) {
+            return "unknown";
+        }
+        return requestId;
     }
 }

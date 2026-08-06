@@ -5,10 +5,15 @@ import java.util.Locale;
 
 import com.financialrag.backend.rag.RagClient;
 import com.financialrag.backend.rag.RagServiceContract;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 import org.springframework.stereotype.Service;
 
 @Service
 public class ReportJobProcessor {
+
+    private static final Logger LOG = LoggerFactory.getLogger(ReportJobProcessor.class);
 
     private final ReportRepository reportRepository;
     private final RagClient ragClient;
@@ -19,10 +24,20 @@ public class ReportJobProcessor {
     }
 
     public void process(ReportJob job) {
+        MDC.put("requestId", job.requestId());
+        try {
+            processWithRequestContext(job);
+        } finally {
+            MDC.remove("requestId");
+        }
+    }
+
+    private void processWithRequestContext(ReportJob job) {
         ReportResponse report = reportRepository.findById(job.reportId())
                 .orElseThrow(() -> new ReportNotFoundException(job.reportId()));
 
         reportRepository.save(runningResponse(report));
+        LOG.info("event=report_job_started reportId={} requestId={}", job.reportId(), job.requestId());
 
         try {
             RagServiceContract.GenerateReportResponse ragResponse = ragClient.generateReport(
@@ -34,8 +49,14 @@ public class ReportJobProcessor {
                             mapSourceFilters(report.sourceFilters())));
 
             reportRepository.save(completedResponse(report, ragResponse));
+            LOG.info("event=report_job_completed reportId={} requestId={}", job.reportId(), job.requestId());
         } catch (RuntimeException exception) {
             reportRepository.save(failedResponse(report));
+            LOG.warn(
+                    "event=report_job_failed reportId={} requestId={} errorType={}",
+                    job.reportId(),
+                    job.requestId(),
+                    exception.getClass().getSimpleName());
         }
     }
 

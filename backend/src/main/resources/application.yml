@@ -13,6 +13,10 @@ management:
       exposure:
         include: health,info
 
+logging:
+  pattern:
+    level: "%5p requestId=%X{requestId:-unknown}"
+
 rag:
   service:
     base-url: ${RAG_SERVICE_BASE_URL:http://localhost:8001}

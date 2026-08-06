@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.junit.jupiter.api.Test;
+import org.slf4j.MDC;
 
 class ReportServiceTest {
 
@@ -14,13 +15,19 @@ class ReportServiceTest {
         ReportRepository reportRepository = new InMemoryReportRepository();
         RecordingReportJobQueue reportJobQueue = new RecordingReportJobQueue();
         ReportService reportService = new ReportService(reportRepository, reportJobQueue);
+        MDC.put("requestId", "request-service-test");
 
-        ReportResponse createdReport = reportService.createReport(new ReportRequest(
-                List.of("nvda"),
-                "What changed in the latest filing?",
-                ReportType.FILING_ANALYSIS,
-                "30d",
-                null));
+        ReportResponse createdReport;
+        try {
+            createdReport = reportService.createReport(new ReportRequest(
+                    List.of("nvda"),
+                    "What changed in the latest filing?",
+                    ReportType.FILING_ANALYSIS,
+                    "30d",
+                    null));
+        } finally {
+            MDC.remove("requestId");
+        }
 
         ReportResponse storedReport = reportService.getReport(createdReport.reportId());
 
@@ -32,6 +39,7 @@ class ReportServiceTest {
                 SourceFilter.NEWS,
                 SourceFilter.EARNINGS);
         assertThat(reportJobQueue.jobs()).extracting(ReportJob::reportId).containsExactly(createdReport.reportId());
+        assertThat(reportJobQueue.jobs()).extracting(ReportJob::requestId).containsExactly("request-service-test");
     }
 
     private static final class RecordingReportJobQueue implements ReportJobQueue {

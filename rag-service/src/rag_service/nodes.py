@@ -13,6 +13,7 @@ from rag_service.models import (
     SourceCoverage,
     SourceFilter,
 )
+from rag_service.operations import record_graph_node
 from rag_service.retrieval import retrieve_agent_results
 from rag_service.reranker import CrossEncoderReranker
 from rag_service.source_memory import LocalSourceMemory
@@ -25,6 +26,7 @@ REPORT_GENERATOR = LocalFinancialReportGenerator()
 
 
 def append_trace(state: RagGraphState, node: str, status: str, detail: str) -> list[TraceEvent]:
+    record_graph_node(node, status, detail)
     return [*state.get("trace", []), {"node": node, "status": status, "detail": detail}]
 
 

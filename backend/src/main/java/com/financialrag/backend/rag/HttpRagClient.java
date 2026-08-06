@@ -1,8 +1,11 @@
 package com.financialrag.backend.rag;
 
+import com.financialrag.backend.web.RequestIdFilter;
+import org.slf4j.MDC;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
+import org.springframework.http.client.ClientHttpRequestInterceptor;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
@@ -48,6 +51,17 @@ public class HttpRagClient implements RagClient {
         return restClientBuilder
                 .baseUrl(properties.getBaseUrl().toString())
                 .requestFactory(requestFactory)
+                .requestInterceptor(requestIdForwardingInterceptor())
                 .build();
+    }
+
+    static ClientHttpRequestInterceptor requestIdForwardingInterceptor() {
+        return (request, body, execution) -> {
+            String requestId = MDC.get("requestId");
+            if (requestId != null && !requestId.isBlank()) {
+                request.getHeaders().set(RequestIdFilter.REQUEST_ID_HEADER, requestId);
+            }
+            return execution.execute(request, body);
+        };
     }
 }
