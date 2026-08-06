@@ -47,8 +47,12 @@ def test_graph_defaults_to_all_sources_and_records_trace():
     assert int(final_state["diagnostics"]["contextTokenCount"]) <= int(final_state["diagnostics"]["contextTokenBudget"])
     assert final_state["rerank_diagnostics"]
     assert final_state["context_citation_map"]
+    assert final_state["structured_report"]
+    assert final_state["diagnostics"]["reportValidationStatus"] in {"validated", "repaired"}
+    assert final_state["diagnostics"]["hallucinationWarningCount"] == "0"
     assert all("reranker_score" in chunk for chunk in final_state["selected_context"])
     assert all("context_citation_id" in chunk["metadata"] for chunk in final_state["selected_context"])
+    assert all("[C" in finding for finding in response.key_findings)
     assert [event["node"] for event in final_state["trace"]] == [
         "plan_request",
         "sec_agent",
@@ -138,3 +142,20 @@ def test_graph_renders_earnings_metadata_in_citations():
     assert earnings_citation.section == "Q&A"
     assert earnings_citation.source_metadata["speaker"] == "Amy Hood"
     assert earnings_citation.source_metadata["fiscal_quarter"] == "Q4"
+
+
+def test_graph_reports_missing_data_without_fabricating_evidence():
+    response = generate_report_from_graph(
+        GenerateReportRequest(
+            tickers=["unknown"],
+            question="Summarize all available sources.",
+            report_type=ReportType.COMPANY_BRIEF,
+            source_filters=[SourceFilter.SEC, SourceFilter.NEWS, SourceFilter.EARNINGS],
+        )
+    )
+
+    assert "could not find cited evidence" in response.summary
+    assert response.citations == []
+    assert any("No SEC filing evidence" in finding for finding in response.key_findings)
+    assert any("No recent news evidence" in finding for finding in response.key_findings)
+    assert any("No earnings or guidance evidence" in finding for finding in response.key_findings)

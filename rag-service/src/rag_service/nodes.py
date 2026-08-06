@@ -2,6 +2,10 @@ from dataclasses import asdict
 
 from rag_service.context_builder import ContextBuilder
 from rag_service.documents import ChunkMetadataFilter
+from rag_service.financial_report import (
+    LocalFinancialReportGenerator,
+    flatten_report_to_key_findings,
+)
 from rag_service.models import (
     Citation,
     Diagnostics,
@@ -17,6 +21,7 @@ from rag_service.state import AgentResult, RagGraphState, RetrievedChunk, TraceE
 SOURCE_MEMORY = LocalSourceMemory()
 RERANKER = CrossEncoderReranker(exclude_low_confidence=False)
 CONTEXT_BUILDER = ContextBuilder()
+REPORT_GENERATOR = LocalFinancialReportGenerator()
 
 
 def append_trace(state: RagGraphState, node: str, status: str, detail: str) -> list[TraceEvent]:
@@ -154,35 +159,52 @@ def build_context(state: RagGraphState) -> RagGraphState:
 
 def generate_report(state: RagGraphState) -> RagGraphState:
     request = state["request"]
-    tickers = ", ".join(state["normalized_tickers"])
+    normalized_tickers = state["normalized_tickers"]
     selected_context = state.get("selected_context", [])
+    generation_result = REPORT_GENERATOR.generate(
+        request,
+        normalized_tickers,
+        selected_context,
+    )
+    report = generation_result.report
     citations = [
         Citation(
-            evidence_id=chunk["evidence_id"],
-            source_type=chunk["source_type"],
-            title=chunk["title"],
-            url=chunk["url"],
-            section=chunk["section"],
-            source_metadata=chunk.get("metadata", {}),
+            evidence_id=citation.evidence_id,
+            source_type=citation.source_type,
+            title=citation.title,
+            url=citation.url,
+            section=citation.section,
+            source_metadata=citation.source_metadata,
         )
-        for chunk in selected_context
+        for citation in report.source_citations
     ]
     diagnostics = {
         **state.get("diagnostics", {}),
         "ragServiceStatus": "completed",
         "generationStatus": "completed",
+        "reportValidationStatus": generation_result.validation_status,
+        "reportRepairAttempted": str(generation_result.repair_attempted).lower(),
+        "hallucinationWarningCount": str(len(generation_result.hallucination_warnings)),
     }
     response = GenerateReportResponse(
-        summary=build_summary(request.report_type.value, tickers, selected_context),
-        key_findings=build_key_findings(selected_context),
+        summary=report.executive_summary,
+        key_findings=flatten_report_to_key_findings(report),
         citations=citations,
         source_coverage=source_coverage(selected_context),
         diagnostics=Diagnostics(**diagnostics),
     )
     return {
         "response": response,
+        "structured_report": report.model_dump(mode="json", by_alias=True),
+        "generation_prompt": generation_result.prompt,
+        "generation_warnings": generation_result.hallucination_warnings,
         "diagnostics": diagnostics,
-        "trace": append_trace(state, "llm_generation", "completed", "mock report generated"),
+        "trace": append_trace(
+            state,
+            "llm_generation",
+            "completed",
+            f"structured report generated with {len(report.source_citations)} citations",
+        ),
     }
 
 
@@ -205,30 +227,12 @@ def build_retrieval_metadata_filter(state: RagGraphState) -> ChunkMetadataFilter
     )
 
 
-def build_summary(report_type: str, tickers: str, selected_context: list[RetrievedChunk]) -> str:
-    report_label = report_type.lower().replace("_", " ")
-    if not selected_context:
-        return f"Local retrieval {report_label} generated for {tickers} with no matching evidence."
-    return (
-        f"Local retrieval {report_label} generated for {tickers} "
-        f"using {len(selected_context)} ranked evidence chunks."
-    )
-
-
-def build_key_findings(selected_context: list[RetrievedChunk]) -> list[str]:
-    if not selected_context:
-        return ["No local evidence matched the requested tickers and source filters."]
-    return [
-        f"{chunk['source_type'].value} evidence ({chunk['section']}): {chunk['text']}"
-        for chunk in selected_context
-    ]
-
-
 def validate_report(state: RagGraphState) -> RagGraphState:
     response = state["response"]
-    status = "completed" if response.summary and response.key_findings else "failed"
+    structured_report = state.get("structured_report", {})
+    status = "completed" if response.summary and response.key_findings and structured_report else "failed"
     return {
-        "trace": append_trace(state, "report_validation", status, "response schema validated"),
+        "trace": append_trace(state, "report_validation", status, "structured response schema validated"),
     }
 
 
