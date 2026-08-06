@@ -17,6 +17,7 @@ target/
 .mvn/wrapper/maven-wrapper.jar
 *.class
 *.log
+rag-service/data/processed/
 
 .idea/
 .vscode/

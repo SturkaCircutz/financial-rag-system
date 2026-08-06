@@ -1,5 +1,6 @@
 from dataclasses import asdict
 
+from rag_service.context_builder import ContextBuilder
 from rag_service.documents import ChunkMetadataFilter
 from rag_service.models import (
     Citation,
@@ -15,6 +16,7 @@ from rag_service.state import AgentResult, RagGraphState, RetrievedChunk, TraceE
 
 SOURCE_MEMORY = LocalSourceMemory()
 RERANKER = CrossEncoderReranker(exclude_low_confidence=False)
+CONTEXT_BUILDER = ContextBuilder()
 
 
 def append_trace(state: RagGraphState, node: str, status: str, detail: str) -> list[TraceEvent]:
@@ -124,39 +126,30 @@ def rerank_chunks(state: RagGraphState) -> RagGraphState:
 
 
 def build_context(state: RagGraphState) -> RagGraphState:
-    selected_context = select_context_chunks(
+    request = state["request"]
+    result = CONTEXT_BUILDER.build(
         state.get("retrieved_chunks", []),
         state.get("source_filters", SourceFilter.defaults()),
+        question=request.question,
+        report_type=request.report_type,
     )
-    return {
-        "selected_context": selected_context,
-        "trace": append_trace(state, "context_builder", "completed", f"selected {len(selected_context)} chunks"),
+    diagnostics = {
+        **state.get("diagnostics", {}),
+        "contextTokenCount": str(result.total_tokens),
+        "contextTokenBudget": str(result.max_tokens),
     }
-
-
-def select_context_chunks(
-    chunks: list[RetrievedChunk],
-    source_filters: list[SourceFilter],
-    max_chunks: int = 6,
-) -> list[RetrievedChunk]:
-    selected: list[RetrievedChunk] = []
-    selected_ids: set[str] = set()
-
-    for source_filter in source_filters:
-        source_chunk = next((chunk for chunk in chunks if chunk["source_type"] == source_filter), None)
-        if source_chunk:
-            selected.append(source_chunk)
-            selected_ids.add(source_chunk["chunk_id"])
-
-    for chunk in chunks:
-        if len(selected) >= max_chunks:
-            break
-        if chunk["chunk_id"] in selected_ids:
-            continue
-        selected.append(chunk)
-        selected_ids.add(chunk["chunk_id"])
-
-    return selected[:max_chunks]
+    return {
+        "selected_context": result.chunks,
+        "context_diagnostics": [asdict(diagnostic) for diagnostic in result.diagnostics],
+        "context_citation_map": [asdict(citation) for citation in result.citation_map],
+        "diagnostics": diagnostics,
+        "trace": append_trace(
+            state,
+            "context_builder",
+            "completed",
+            f"packed {len(result.chunks)} chunks into {result.total_tokens}/{result.max_tokens} tokens",
+        ),
+    }
 
 
 def generate_report(state: RagGraphState) -> RagGraphState:

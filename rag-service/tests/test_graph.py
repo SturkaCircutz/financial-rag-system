@@ -44,8 +44,11 @@ def test_graph_defaults_to_all_sources_and_records_trace():
     assert response.source_coverage.news_chunks >= 1
     assert response.source_coverage.earnings_chunks >= 1
     assert final_state["diagnostics"]["rerankerStatus"] == "completed"
+    assert int(final_state["diagnostics"]["contextTokenCount"]) <= int(final_state["diagnostics"]["contextTokenBudget"])
     assert final_state["rerank_diagnostics"]
+    assert final_state["context_citation_map"]
     assert all("reranker_score" in chunk for chunk in final_state["selected_context"])
+    assert all("context_citation_id" in chunk["metadata"] for chunk in final_state["selected_context"])
     assert [event["node"] for event in final_state["trace"]] == [
         "plan_request",
         "sec_agent",
