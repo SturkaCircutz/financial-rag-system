@@ -1,5 +1,7 @@
 package com.financialrag.backend.report;
 
+import java.util.Comparator;
+import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -22,5 +24,13 @@ public class InMemoryReportRepository implements ReportRepository {
     @Override
     public Optional<ReportResponse> findById(String reportId) {
         return Optional.ofNullable(reports.get(reportId));
+    }
+
+    @Override
+    public List<ReportResponse> findAll() {
+        return reports.values().stream()
+                .sorted(Comparator.comparing(ReportResponse::createdAt).reversed()
+                        .thenComparing(ReportResponse::reportId))
+                .toList();
     }
 }

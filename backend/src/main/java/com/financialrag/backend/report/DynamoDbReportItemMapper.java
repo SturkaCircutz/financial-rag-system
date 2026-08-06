@@ -59,6 +59,11 @@ final class DynamoDbReportItemMapper {
                 "SK", stringValue(META_SK));
     }
 
+    static boolean isReportItem(Map<String, AttributeValue> item) {
+        return META_SK.equals(optionalStringAttribute(item, "SK"))
+                && "REPORT".equals(optionalStringAttribute(item, "entityType"));
+    }
+
     private static String reportPk(String reportId) {
         return REPORT_PK_PREFIX + reportId;
     }

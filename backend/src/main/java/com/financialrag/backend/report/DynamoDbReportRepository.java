@@ -1,5 +1,6 @@
 package com.financialrag.backend.report;
 
+import java.util.List;
 import java.util.Optional;
 
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -8,6 +9,7 @@ import org.springframework.stereotype.Repository;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.model.GetItemRequest;
 import software.amazon.awssdk.services.dynamodb.model.PutItemRequest;
+import software.amazon.awssdk.services.dynamodb.model.ScanRequest;
 
 @Repository
 @ConditionalOnProperty(prefix = "reports.repository", name = "mode", havingValue = "dynamodb")
@@ -44,5 +46,19 @@ public class DynamoDbReportRepository implements ReportRepository {
             return Optional.empty();
         }
         return Optional.of(DynamoDbReportItemMapper.fromItem(response.item()));
+    }
+
+    @Override
+    public List<ReportResponse> findAll() {
+        var response = dynamoDbClient.scan(ScanRequest.builder()
+                .tableName(properties.getTableName())
+                .build());
+
+        return response.items().stream()
+                .filter(DynamoDbReportItemMapper::isReportItem)
+                .map(DynamoDbReportItemMapper::fromItem)
+                .sorted(java.util.Comparator.comparing(ReportResponse::createdAt).reversed()
+                        .thenComparing(ReportResponse::reportId))
+                .toList();
     }
 }

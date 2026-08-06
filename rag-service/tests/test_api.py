@@ -1,9 +1,9 @@
-from rag_service.api import generate_report
+from rag_service.api import generate_report_response
 from rag_service.models import GenerateReportRequest, ReportType, SourceFilter
 
 
 def test_generate_report_endpoint_matches_backend_contract():
-    response = generate_report(
+    response = generate_report_response(
         GenerateReportRequest(
             tickers=["NVDA"],
             question="What are the latest risk factors?",
