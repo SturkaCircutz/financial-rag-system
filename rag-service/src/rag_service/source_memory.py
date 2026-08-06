@@ -1,7 +1,9 @@
 from dataclasses import dataclass
 from typing import Protocol
 
-from rag_service.chunking import SourceChunk, chunk_documents, content_hash
+from rag_service.chunking import SourceChunk, chunk_documents
+from rag_service.document_store import LocalDocumentStore, StoreWriteResult
+from rag_service.documents import content_hash, current_timestamp
 from rag_service.corpus import EvidenceDocument, documents_for
 from rag_service.models import SourceFilter
 from rag_service.state import AgentResult
@@ -38,6 +40,7 @@ class SourceMemoryResult:
     manifests: list[SourceManifest]
     chunk_pointers: list[ChunkPointer]
     chunks: list[AgentResult]
+    store_write: StoreWriteResult | None = None
 
 
 class SourceMemory(Protocol):
@@ -46,17 +49,23 @@ class SourceMemory(Protocol):
 
 
 class LocalSourceMemory:
+    def __init__(self, store: LocalDocumentStore | None = None):
+        self._store = store or LocalDocumentStore()
+
     def collect(self, source_type: SourceFilter, tickers: list[str]) -> SourceMemoryResult:
         documents = documents_for(source_type, tickers)
-        chunks = chunk_documents(documents)
+        ingested_at = current_timestamp()
+        chunks = chunk_documents(documents, ingested_at=ingested_at)
+        store_write = self._store.persist(documents, chunks)
         return SourceMemoryResult(
-            manifests=[manifest_for(document) for document in documents],
+            manifests=[manifest_for(document, ingested_at=ingested_at) for document in documents],
             chunk_pointers=[pointer_for(chunk) for chunk in chunks],
             chunks=[agent_result_for(chunk) for chunk in chunks],
+            store_write=store_write,
         )
 
 
-def manifest_for(document: EvidenceDocument) -> SourceManifest:
+def manifest_for(document: EvidenceDocument, ingested_at: str | None = None) -> SourceManifest:
     return SourceManifest(
         source_id=document.source_id,
         ticker=document.ticker,
@@ -65,7 +74,7 @@ def manifest_for(document: EvidenceDocument) -> SourceManifest:
         url=document.url,
         section=document.section,
         content_hash=content_hash(document.text),
-        metadata=dict(document.metadata),
+        metadata=document.canonical_metadata(ingested_at=ingested_at),
     )
 
 

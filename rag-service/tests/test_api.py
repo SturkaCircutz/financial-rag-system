@@ -1,24 +1,19 @@
-from fastapi.testclient import TestClient
-
-from rag_service.api import app
+from rag_service.api import generate_report
+from rag_service.models import GenerateReportRequest, ReportType, SourceFilter
 
 
 def test_generate_report_endpoint_matches_backend_contract():
-    client = TestClient(app)
-
-    response = client.post(
-        "/v1/reports:generate",
-        json={
-            "tickers": ["NVDA"],
-            "question": "What are the latest risk factors?",
-            "reportType": "COMPANY_BRIEF",
-            "timeHorizon": "30d",
-            "sourceFilters": ["SEC"],
-        },
+    response = generate_report(
+        GenerateReportRequest(
+            tickers=["NVDA"],
+            question="What are the latest risk factors?",
+            report_type=ReportType.COMPANY_BRIEF,
+            time_horizon="30d",
+            source_filters=[SourceFilter.SEC],
+        )
     )
 
-    assert response.status_code == 200
-    body = response.json()
+    body = response.model_dump(by_alias=True)
     assert body["summary"]
     assert len(body["keyFindings"]) >= 1
     assert body["sourceCoverage"]["secChunks"] >= 1

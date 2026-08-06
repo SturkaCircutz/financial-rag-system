@@ -1,5 +1,6 @@
 from dataclasses import dataclass, field
 
+from rag_service.documents import Document
 from rag_service.earnings_ingestion import IngestedEarningsDocument, LocalEarningsIngestor
 from rag_service.models import SourceFilter
 from rag_service.news_ingestion import IngestedNewsDocument, LocalNewsIngestor
@@ -7,14 +8,7 @@ from rag_service.sec_ingestion import IngestedSecDocument, LocalSecFilingIngesto
 
 
 @dataclass(frozen=True)
-class EvidenceDocument:
-    source_id: str
-    ticker: str
-    source_type: SourceFilter
-    title: str
-    url: str
-    section: str
-    text: str
+class EvidenceDocument(Document):
     metadata: dict[str, str] = field(default_factory=dict)
 
 
@@ -188,6 +182,10 @@ def evidence_document_for_sec_filing(document: IngestedSecDocument) -> EvidenceD
         section=document.section,
         text=document.text,
         metadata=document.metadata,
+        company_name=document.metadata.get("company_name", ""),
+        published_at=document.metadata.get("filing_date", ""),
+        period=document.metadata.get("report_period", ""),
+        provider="local-sec",
     )
 
 
@@ -201,6 +199,8 @@ def evidence_document_for_news_article(document: IngestedNewsDocument) -> Eviden
         section=document.section,
         text=document.text,
         metadata=document.metadata,
+        published_at=document.metadata.get("published_at", ""),
+        provider=document.metadata.get("publisher", "local-news"),
     )
 
 
@@ -214,4 +214,14 @@ def evidence_document_for_earnings_segment(document: IngestedEarningsDocument) -
         section=document.section,
         text=document.text,
         metadata=document.metadata,
+        published_at=document.metadata.get("call_date", ""),
+        period=" ".join(
+            value
+            for value in (
+                document.metadata.get("fiscal_year", ""),
+                document.metadata.get("fiscal_quarter", ""),
+            )
+            if value
+        ),
+        provider="local-earnings",
     )

@@ -51,6 +51,9 @@ def collect_earnings(state: RagGraphState) -> RagGraphState:
 def collect_source(state: RagGraphState, source_filter: SourceFilter) -> RagGraphState:
     memory_result = SOURCE_MEMORY.collect(source_filter, state["normalized_tickers"])
     results: list[AgentResult] = memory_result.chunks
+    store_detail = ""
+    if memory_result.store_write:
+        store_detail = f" and persisted {memory_result.store_write.chunk_count} total stored chunks"
     return {
         "agent_results": [*state.get("agent_results", []), *results],
         "trace": append_trace(
@@ -60,6 +63,7 @@ def collect_source(state: RagGraphState, source_filter: SourceFilter) -> RagGrap
             (
                 f"loaded {len(memory_result.manifests)} source manifests "
                 f"and {len(memory_result.chunk_pointers)} chunk pointers"
+                f"{store_detail}"
             ),
         ),
     }
