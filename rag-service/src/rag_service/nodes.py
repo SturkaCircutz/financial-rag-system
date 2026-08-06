@@ -3,7 +3,7 @@ from dataclasses import asdict
 from rag_service.context_builder import ContextBuilder
 from rag_service.documents import ChunkMetadataFilter
 from rag_service.financial_report import (
-    LocalFinancialReportGenerator,
+    financial_report_generator_from_env,
     flatten_report_to_key_findings,
 )
 from rag_service.models import (
@@ -22,7 +22,7 @@ from rag_service.state import AgentResult, RagGraphState, RetrievedChunk, TraceE
 SOURCE_MEMORY = LocalSourceMemory()
 RERANKER = CrossEncoderReranker(exclude_low_confidence=False)
 CONTEXT_BUILDER = ContextBuilder()
-REPORT_GENERATOR = LocalFinancialReportGenerator()
+REPORT_GENERATOR = financial_report_generator_from_env()
 
 
 def append_trace(state: RagGraphState, node: str, status: str, detail: str) -> list[TraceEvent]:
@@ -182,6 +182,7 @@ def generate_report(state: RagGraphState) -> RagGraphState:
     ]
     diagnostics = {
         **state.get("diagnostics", {}),
+        "mode": generation_result.provider,
         "ragServiceStatus": "completed",
         "generationStatus": "completed",
         "reportValidationStatus": generation_result.validation_status,

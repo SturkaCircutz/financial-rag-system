@@ -39,4 +39,32 @@ class InMemoryReportRepositoryTest {
 
         assertThat(reportRepository.findById("missing-report")).isEmpty();
     }
+
+    @Test
+    void findAllReturnsNewestReportsFirst() {
+        InMemoryReportRepository reportRepository = new InMemoryReportRepository();
+        ReportResponse olderReport = report("report-older", Instant.parse("2026-08-05T00:00:00Z"));
+        ReportResponse newerReport = report("report-newer", Instant.parse("2026-08-06T00:00:00Z"));
+        reportRepository.save(olderReport);
+        reportRepository.save(newerReport);
+
+        assertThat(reportRepository.findAll()).containsExactly(newerReport, olderReport);
+    }
+
+    private static ReportResponse report(String reportId, Instant createdAt) {
+        return new ReportResponse(
+                reportId,
+                ReportStatus.QUEUED,
+                List.of("NVDA"),
+                ReportType.COMPANY_BRIEF,
+                "What changed?",
+                "30d",
+                SourceFilter.defaultFilters(),
+                "",
+                List.of(),
+                List.of(),
+                new SourceCoverage(0, 0, 0),
+                new ReportDiagnostics("pending", "queued", "not_started", "not_started"),
+                createdAt);
+    }
 }

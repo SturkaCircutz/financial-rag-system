@@ -10,6 +10,7 @@ from rag_service.operations import (
     rebuild_local_index,
     secret_policy_status,
 )
+from rag_service.paths import data_root
 
 
 def main() -> None:
@@ -39,7 +40,7 @@ def main() -> None:
     elif args.command == "retention":
         root = Path(args.root) if args.root else None
         result = purge_expired_processed_files(
-            root=root or Path(__file__).resolve().parents[2] / "data" / "processed",
+            root=root or data_root() / "processed",
             retention_days=args.retention_days,
         )
     else:

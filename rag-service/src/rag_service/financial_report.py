@@ -1,5 +1,9 @@
+import json
+import os
+import urllib.error
+import urllib.request
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Protocol
 
 from pydantic import Field, ValidationError, field_validator
 
@@ -108,10 +112,20 @@ class ReportGenerationResult:
     validation_status: str
     repair_attempted: bool
     hallucination_warnings: list[str]
+    provider: str = "local_retrieval"
 
 
 class StructuredReportValidationError(ValueError):
     pass
+
+
+class LlmProviderError(RuntimeError):
+    pass
+
+
+class StructuredReportClient(Protocol):
+    def generate_structured_report(self, prompt: str) -> dict[str, Any]:
+        pass
 
 
 class LocalFinancialReportGenerator:
@@ -137,7 +151,137 @@ class LocalFinancialReportGenerator:
             validation_status=validation_status,
             repair_attempted=repair_attempted,
             hallucination_warnings=hallucination_warnings,
+            provider="local_retrieval",
         )
+
+
+class OpenAiFinancialReportGenerator:
+    def __init__(
+        self,
+        client: StructuredReportClient,
+        fallback: LocalFinancialReportGenerator | None = None,
+    ):
+        self._client = client
+        self._fallback = fallback or LocalFinancialReportGenerator()
+
+    def generate(
+        self,
+        request: GenerateReportRequest,
+        tickers: list[str],
+        selected_context: list[RetrievedChunk],
+    ) -> ReportGenerationResult:
+        prompt = build_prompt(request, tickers, selected_context)
+        try:
+            raw_payload = self._client.generate_structured_report(prompt)
+            report, validation_status, repair_attempted = validate_or_repair_report_payload(raw_payload, selected_context)
+            hallucination_warnings = hallucination_warnings_for(report)
+            if hallucination_warnings:
+                repaired_payload = repair_structured_report_payload(report.model_dump(mode="json"), selected_context)
+                report = StructuredFinancialReport.model_validate(repaired_payload)
+                hallucination_warnings = hallucination_warnings_for(report)
+                repair_attempted = True
+                validation_status = "repaired"
+            return ReportGenerationResult(
+                report=report,
+                prompt=prompt,
+                validation_status=validation_status,
+                repair_attempted=repair_attempted,
+                hallucination_warnings=hallucination_warnings,
+                provider="openai_llm",
+            )
+        except (LlmProviderError, ValidationError, StructuredReportValidationError, json.JSONDecodeError, KeyError, TypeError) as exc:
+            fallback_result = self._fallback.generate(request, tickers, selected_context)
+            return ReportGenerationResult(
+                report=fallback_result.report,
+                prompt=prompt,
+                validation_status=f"fallback_after_openai_error:{type(exc).__name__}",
+                repair_attempted=fallback_result.repair_attempted,
+                hallucination_warnings=[
+                    *fallback_result.hallucination_warnings,
+                    "OpenAI LLM generation failed; used local structured generator fallback.",
+                ],
+                provider=fallback_result.provider,
+            )
+
+
+class OpenAiResponsesClient:
+    def __init__(
+        self,
+        api_key: str,
+        model: str,
+        timeout_seconds: int = 30,
+        base_url: str = "https://api.openai.com/v1/responses",
+    ):
+        self._api_key = api_key
+        self._model = model
+        self._timeout_seconds = timeout_seconds
+        self._base_url = base_url
+
+    def generate_structured_report(self, prompt: str) -> dict[str, Any]:
+        body = json.dumps(
+            {
+                "model": self._model,
+                "input": [
+                    {
+                        "role": "system",
+                        "content": (
+                            "You generate cited financial research reports. "
+                            "Return only valid JSON matching the requested schema."
+                        ),
+                    },
+                    {"role": "user", "content": prompt},
+                ],
+                "text": {"format": {"type": "json_object"}},
+            }
+        ).encode("utf-8")
+        request = urllib.request.Request(
+            self._base_url,
+            data=body,
+            headers={
+                "Authorization": f"Bearer {self._api_key}",
+                "Content-Type": "application/json",
+            },
+            method="POST",
+        )
+
+        try:
+            with urllib.request.urlopen(request, timeout=self._timeout_seconds) as response:
+                response_payload = json.loads(response.read().decode("utf-8"))
+        except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as exc:
+            raise LlmProviderError("OpenAI response request failed.") from exc
+
+        return json.loads(extract_response_text(response_payload))
+
+
+def financial_report_generator_from_env(env: dict[str, str] | None = None):
+    values = os.environ if env is None else env
+    provider = values.get("RAG_LLM_PROVIDER", "local").strip().lower()
+    api_key = values.get("OPENAI_API_KEY", "").strip()
+    model = values.get("OPENAI_MODEL", "").strip()
+    if provider == "openai" and api_key and model:
+        timeout = int(values.get("OPENAI_TIMEOUT_SECONDS", "30"))
+        return OpenAiFinancialReportGenerator(OpenAiResponsesClient(api_key, model, timeout_seconds=timeout))
+    return LocalFinancialReportGenerator()
+
+
+def extract_response_text(payload: dict[str, Any]) -> str:
+    output_text = payload.get("output_text")
+    if isinstance(output_text, str) and output_text.strip():
+        return output_text
+
+    for output in payload.get("output", []):
+        for content in output.get("content", []):
+            text = content.get("text")
+            if isinstance(text, str) and text.strip():
+                return text
+
+    choices = payload.get("choices", [])
+    if choices:
+        content = choices[0].get("message", {}).get("content")
+        if isinstance(content, str) and content.strip():
+            return content
+
+    raise LlmProviderError("OpenAI response did not contain text output.")
 
 
 def build_prompt(

@@ -1,8 +1,12 @@
 import pytest
 
 from rag_service.financial_report import (
+    LlmProviderError,
     PROMPT_TEMPLATES,
     LocalFinancialReportGenerator,
+    OpenAiFinancialReportGenerator,
+    extract_response_text,
+    financial_report_generator_from_env,
     StructuredReportValidationError,
     build_prompt,
     repair_structured_report_payload,
@@ -58,6 +62,97 @@ def test_local_generator_creates_structured_report_with_cited_material_claims():
     assert "C1" in result.report.executive_summary
     assert result.report.latest_sec_filing_signals[0].citation_ids == ["C1"]
     assert result.report.source_citations[0].citation_id == "C1"
+
+
+def test_openai_generator_uses_mocked_llm_payload_when_valid():
+    result = OpenAiFinancialReportGenerator(
+        MockStructuredReportClient(valid_llm_payload())
+    ).generate(
+        GenerateReportRequest(
+            tickers=["NVDA"],
+            question="Which risk factors changed?",
+            report_type=ReportType.FILING_ANALYSIS,
+            source_filters=[SourceFilter.SEC],
+        ),
+        ["NVDA"],
+        [context_chunk("sec-risk", SourceFilter.SEC, "Risk factors discuss export controls.", "C1")],
+    )
+
+    assert result.provider == "openai_llm"
+    assert result.validation_status == "validated"
+    assert result.hallucination_warnings == []
+    assert result.report.executive_summary == "OpenAI structured summary based on cited evidence [C1]."
+    assert result.report.key_evidence[0].citation_ids == ["C1"]
+
+
+def test_openai_generator_repairs_mocked_llm_payload_when_citation_is_missing():
+    payload = valid_llm_payload()
+    payload["executive_summary"] = "OpenAI summary missing a citation."
+    payload["key_evidence"][0]["citation_ids"] = []
+
+    result = OpenAiFinancialReportGenerator(MockStructuredReportClient(payload)).generate(
+        GenerateReportRequest(
+            tickers=["NVDA"],
+            question="Which risk factors changed?",
+            report_type=ReportType.FILING_ANALYSIS,
+            source_filters=[SourceFilter.SEC],
+        ),
+        ["NVDA"],
+        [context_chunk("sec-risk", SourceFilter.SEC, "Risk factors discuss export controls.", "C1")],
+    )
+
+    assert result.provider == "openai_llm"
+    assert result.validation_status == "repaired"
+    assert result.repair_attempted is True
+    assert "C1" in result.report.executive_summary
+    assert result.report.key_evidence[0].citation_ids == ["C1"]
+
+
+def test_openai_generator_falls_back_to_local_generation_when_provider_fails():
+    result = OpenAiFinancialReportGenerator(FailingStructuredReportClient()).generate(
+        GenerateReportRequest(
+            tickers=["NVDA"],
+            question="Which risk factors changed?",
+            report_type=ReportType.FILING_ANALYSIS,
+            source_filters=[SourceFilter.SEC],
+        ),
+        ["NVDA"],
+        [context_chunk("sec-risk", SourceFilter.SEC, "Risk factors discuss export controls.", "C1")],
+    )
+
+    assert result.provider == "local_retrieval"
+    assert result.validation_status == "fallback_after_openai_error:LlmProviderError"
+    assert any("OpenAI LLM generation failed" in warning for warning in result.hallucination_warnings)
+    assert "Local structured" in result.report.executive_summary
+
+
+def test_financial_report_generator_from_env_selects_openai_only_when_fully_configured():
+    local_generator = financial_report_generator_from_env({})
+    openai_generator = financial_report_generator_from_env(
+        {
+            "RAG_LLM_PROVIDER": "openai",
+            "OPENAI_API_KEY": "test-key",
+            "OPENAI_MODEL": "test-model",
+        }
+    )
+
+    assert isinstance(local_generator, LocalFinancialReportGenerator)
+    assert isinstance(openai_generator, OpenAiFinancialReportGenerator)
+
+
+def test_extract_response_text_supports_responses_api_shapes():
+    assert extract_response_text({"output_text": "{\"executive_summary\":\"ok [C1]\"}"}) == "{\"executive_summary\":\"ok [C1]\"}"
+    assert extract_response_text(
+        {
+            "output": [
+                {
+                    "content": [
+                        {"type": "output_text", "text": "{\"executive_summary\":\"nested [C1]\"}"}
+                    ]
+                }
+            ]
+        }
+    ) == "{\"executive_summary\":\"nested [C1]\"}"
 
 
 def test_generator_reports_missing_data_instead_of_fabricating_sources():
@@ -164,3 +259,41 @@ def context_chunk(
             "context_citation_id": citation_id,
         },
     }
+
+
+def valid_llm_payload() -> dict:
+    return {
+        "executive_summary": "OpenAI structured summary based on cited evidence [C1].",
+        "key_evidence": [
+            {
+                "claim": "Risk factors discuss export controls. [C1]",
+                "citation_ids": ["C1"],
+            }
+        ],
+        "source_citations": [
+            {
+                "citation_id": "C1",
+                "evidence_id": "sec-risk#chunk-001",
+                "source_type": "SEC",
+                "title": "Local source title",
+                "url": "https://example.com/sec-risk",
+                "section": "Risk Factors",
+                "source_metadata": {"published_at": "2026-05-28"},
+            }
+        ],
+        "methodology_and_limitations": ["Generated from selected cited RAG context only."],
+    }
+
+
+class MockStructuredReportClient:
+    def __init__(self, payload: dict):
+        self.payload = payload
+
+    def generate_structured_report(self, prompt: str) -> dict:
+        assert "Return JSON matching the StructuredFinancialReport schema." in prompt
+        return self.payload
+
+
+class FailingStructuredReportClient:
+    def generate_structured_report(self, prompt: str) -> dict:
+        raise LlmProviderError("provider down")

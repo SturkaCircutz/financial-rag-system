@@ -5,6 +5,7 @@ from datetime import date
 from pathlib import Path
 
 from rag_service.models import SourceFilter
+from rag_service.paths import data_root
 
 
 @dataclass(frozen=True)
@@ -50,7 +51,7 @@ SEC_COMPANIES = {
 
 
 SECTION_HEADER_PATTERN = re.compile(r"^ITEM\s+[0-9A-Z]+\.?\s+(.+)$", re.IGNORECASE)
-SEC_DATA_ROOT = Path(__file__).resolve().parents[2] / "data" / "sec"
+SEC_DATA_ROOT = data_root() / "sec"
 
 
 class TickerCikLookup:

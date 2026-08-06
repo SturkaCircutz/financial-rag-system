@@ -6,11 +6,12 @@ from typing import Any, Mapping
 
 from rag_service.financial_report import StructuredFinancialReport, evidence_claim_fields
 from rag_service.models import ReportType, SourceFilter
+from rag_service.paths import data_root
 from rag_service.retrieval import tokenize
 from rag_service.state import RetrievedChunk
 
 
-EVALUATION_DATA_ROOT = Path(__file__).resolve().parents[2] / "data" / "evaluation"
+EVALUATION_DATA_ROOT = data_root() / "evaluation"
 GOLDEN_QUESTION_PATH = EVALUATION_DATA_ROOT / "golden_questions.json"
 BASELINE_METRICS_PATH = EVALUATION_DATA_ROOT / "baseline_metrics.json"
 DEFAULT_RETRIEVAL_K = 5

@@ -13,6 +13,8 @@ import software.amazon.awssdk.services.dynamodb.model.GetItemRequest;
 import software.amazon.awssdk.services.dynamodb.model.GetItemResponse;
 import software.amazon.awssdk.services.dynamodb.model.PutItemRequest;
 import software.amazon.awssdk.services.dynamodb.model.PutItemResponse;
+import software.amazon.awssdk.services.dynamodb.model.ScanRequest;
+import software.amazon.awssdk.services.dynamodb.model.ScanResponse;
 
 class DynamoDbReportRepositoryTest {
 
@@ -58,9 +60,52 @@ class DynamoDbReportRepositoryTest {
         assertThat(repository.findById("missing-report")).isEmpty();
     }
 
+    @Test
+    void findAllScansReportItemsFromConfiguredTable() {
+        DynamoDbClient dynamoDbClient = org.mockito.Mockito.mock(DynamoDbClient.class);
+        ReportResponse olderReport = report("report-older", java.time.Instant.parse("2026-08-05T00:00:00Z"));
+        ReportResponse newerReport = report("report-newer", java.time.Instant.parse("2026-08-06T00:00:00Z"));
+        when(dynamoDbClient.scan(any(ScanRequest.class))).thenReturn(ScanResponse.builder()
+                .items(
+                        DynamoDbReportItemMapper.toItem(olderReport),
+                        DynamoDbReportItemMapper.toItem(newerReport))
+                .build());
+        DynamoDbReportRepository repository = new DynamoDbReportRepository(dynamoDbClient, properties());
+
+        var reports = repository.findAll();
+
+        ArgumentCaptor<ScanRequest> scanRequest = ArgumentCaptor.forClass(ScanRequest.class);
+        verify(dynamoDbClient).scan(scanRequest.capture());
+        assertThat(scanRequest.getValue().tableName()).isEqualTo("financial-rag-test");
+        assertThat(reports).containsExactly(newerReport, olderReport);
+    }
+
     private static DynamoDbReportRepositoryProperties properties() {
         DynamoDbReportRepositoryProperties properties = new DynamoDbReportRepositoryProperties();
         properties.setTableName("financial-rag-test");
         return properties;
+    }
+
+    private static ReportResponse report(String reportId, java.time.Instant createdAt) {
+        return new ReportResponse(
+                reportId,
+                ReportStatus.COMPLETED,
+                java.util.List.of("NVDA"),
+                ReportType.FILING_ANALYSIS,
+                "What changed in the latest filing?",
+                "30d",
+                java.util.List.of(SourceFilter.SEC, SourceFilter.NEWS),
+                "Generated report summary.",
+                java.util.List.of("SEC finding.", "News finding."),
+                java.util.List.of(new Citation(
+                        "nvda-sec-risk-001#chunk-001",
+                        "SEC",
+                        "NVDA sample filing risk factors",
+                        "https://example.com/nvda-sec-risk-001",
+                        "Risk Factors",
+                        java.util.Map.of("cik", "0001045810", "form_type", "10-Q"))),
+                new SourceCoverage(1, 1, 0),
+                new ReportDiagnostics("local_retrieval", "completed", "completed", "completed"),
+                createdAt);
     }
 }

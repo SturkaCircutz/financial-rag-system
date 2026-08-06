@@ -1,17 +1,23 @@
 package com.financialrag.backend.report;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.nio.charset.StandardCharsets;
+import java.time.Instant;
+import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -30,6 +36,9 @@ class ReportControllerTest {
 
     @Autowired
     private ObjectMapper objectMapper;
+
+    @Autowired
+    private ReportRepository reportRepository;
 
     @Test
     void createReportReturnsQueuedReport() throws Exception {
@@ -99,6 +108,109 @@ class ReportControllerTest {
         assertThat(completedReport.path("keyFindings")).hasSize(3);
         assertThat(completedReport.path("diagnostics").path("mode").asText()).isEqualTo("stub");
         assertThat(completedReport.path("diagnostics").path("ragServiceStatus").asText()).isEqualTo("stub_client");
+    }
+
+    @Test
+    void listReportsFiltersHistoryByTickerAndDate() throws Exception {
+        reportRepository.save(completedReport(
+                "report-history-nvda",
+                List.of("NVDA"),
+                Instant.parse("2030-08-05T10:00:00Z")));
+        reportRepository.save(completedReport(
+                "report-history-amd",
+                List.of("AMD"),
+                Instant.parse("2030-08-05T11:00:00Z")));
+
+        String responseBody = mockMvc.perform(get("/api/v1/reports")
+                        .param("ticker", "nvda")
+                        .param("createdAfter", "2030-08-05T00:00:00Z")
+                        .param("createdBefore", "2030-08-06T00:00:00Z"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.count", equalTo(1)))
+                .andExpect(jsonPath("$.reports[0].reportId", equalTo("report-history-nvda")))
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        JsonNode responseJson = objectMapper.readTree(responseBody);
+        assertThat(responseJson.path("reports").get(0).path("tickers").get(0).asText()).isEqualTo("NVDA");
+    }
+
+    @Test
+    void getCitationDetailReturnsAuditableSourceChunk() throws Exception {
+        reportRepository.save(completedReport(
+                "report-citation-detail",
+                List.of("NVDA"),
+                Instant.parse("2026-08-05T10:00:00Z")));
+
+        mockMvc.perform(get("/api/v1/reports/{reportId}/citations", "report-citation-detail")
+                        .param("evidenceId", "nvda-sec-risk-001#chunk-001"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.reportId", equalTo("report-citation-detail")))
+                .andExpect(jsonPath("$.evidenceId", equalTo("nvda-sec-risk-001#chunk-001")))
+                .andExpect(jsonPath("$.documentTitle", equalTo("NVDA sample filing risk factors")))
+                .andExpect(jsonPath("$.documentUrl", equalTo("https://example.com/nvda-sec-risk-001")))
+                .andExpect(jsonPath("$.publishedAt", equalTo("2026-05-28")))
+                .andExpect(jsonPath("$.sourceChunk", containsString("export controls")));
+    }
+
+    @Test
+    void getCitationDetailReturnsNotFoundForMissingEvidenceId() throws Exception {
+        reportRepository.save(completedReport(
+                "report-citation-missing",
+                List.of("NVDA"),
+                Instant.parse("2026-08-05T10:00:00Z")));
+
+        mockMvc.perform(get("/api/v1/reports/{reportId}/citations", "report-citation-missing")
+                        .param("evidenceId", "missing-citation"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.error", equalTo("not_found")))
+                .andExpect(jsonPath("$.message", equalTo(
+                        "Citation not found for report report-citation-missing: missing-citation")));
+    }
+
+    @Test
+    void exportReportSupportsMarkdownJsonAndPdf() throws Exception {
+        reportRepository.save(completedReport(
+                "report-export-test",
+                List.of("NVDA"),
+                Instant.parse("2026-08-05T10:00:00Z")));
+
+        mockMvc.perform(get("/api/v1/reports/{reportId}/export", "report-export-test")
+                        .param("format", "markdown"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Disposition", "attachment; filename=\"report-export-test.md\""))
+                .andExpect(content().string(containsString("# Financial RAG Report report-export-test")))
+                .andExpect(content().string(containsString("NVDA sample filing risk factors")));
+
+        mockMvc.perform(get("/api/v1/reports/{reportId}/export", "report-export-test")
+                        .param("format", "json"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Disposition", "attachment; filename=\"report-export-test.json\""))
+                .andExpect(jsonPath("$.reportId", equalTo("report-export-test")));
+
+        byte[] pdf = mockMvc.perform(get("/api/v1/reports/{reportId}/export", "report-export-test")
+                        .param("format", "pdf"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Disposition", "attachment; filename=\"report-export-test.pdf\""))
+                .andReturn()
+                .getResponse()
+                .getContentAsByteArray();
+        assertThat(new String(pdf, StandardCharsets.US_ASCII)).startsWith("%PDF-1.4");
+    }
+
+    @Test
+    void exportReportRejectsUnsupportedFormat() throws Exception {
+        reportRepository.save(completedReport(
+                "report-export-invalid",
+                List.of("NVDA"),
+                Instant.parse("2026-08-05T10:00:00Z")));
+
+        mockMvc.perform(get("/api/v1/reports/{reportId}/export", "report-export-invalid")
+                        .param("format", "docx"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error", equalTo("invalid_request")))
+                .andExpect(jsonPath("$.message", equalTo("Unsupported report export format: docx")));
     }
 
     @Test
@@ -174,5 +286,32 @@ class ReportControllerTest {
         assertThat(latestReport).isNotNull();
         assertThat(latestReport.path("status").asText()).isEqualTo("COMPLETED");
         return latestReport;
+    }
+
+    private static ReportResponse completedReport(String reportId, List<String> tickers, Instant createdAt) {
+        return new ReportResponse(
+                reportId,
+                ReportStatus.COMPLETED,
+                tickers,
+                ReportType.FILING_ANALYSIS,
+                "Which filing discusses export controls?",
+                "30d",
+                List.of(SourceFilter.SEC),
+                "Generated report summary for " + String.join(", ", tickers) + ".",
+                List.of("SEC evidence mentions export controls."),
+                List.of(new Citation(
+                        "nvda-sec-risk-001#chunk-001",
+                        "SEC",
+                        "NVDA sample filing risk factors",
+                        "https://example.com/nvda-sec-risk-001",
+                        "Risk Factors",
+                        Map.of(
+                                "cik", "0001045810",
+                                "form_type", "10-Q",
+                                "filing_date", "2026-05-28",
+                                "source_chunk", "Risk factors include export controls and supply constraints."))),
+                new SourceCoverage(1, 0, 0),
+                new ReportDiagnostics("local_retrieval", "completed", "completed", "completed"),
+                createdAt);
     }
 }

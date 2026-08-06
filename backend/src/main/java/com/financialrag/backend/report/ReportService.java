@@ -3,6 +3,7 @@ package com.financialrag.backend.report;
 import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -45,6 +46,62 @@ public class ReportService {
     public ReportResponse getReport(String reportId) {
         return reportRepository.findById(reportId)
                 .orElseThrow(() -> new ReportNotFoundException(reportId));
+    }
+
+    public ReportHistoryResponse listReports(String ticker, Instant createdAfter, Instant createdBefore) {
+        List<ReportResponse> reports = reportRepository.findAll().stream()
+                .filter(report -> matchesTicker(report, ticker))
+                .filter(report -> matchesCreatedAfter(report, createdAfter))
+                .filter(report -> matchesCreatedBefore(report, createdBefore))
+                .toList();
+
+        return new ReportHistoryResponse(reports, reports.size());
+    }
+
+    public CitationDetail getCitationDetail(String reportId, String evidenceId) {
+        ReportResponse report = getReport(reportId);
+        Citation citation = report.citations().stream()
+                .filter(candidate -> candidate.evidenceId().equals(evidenceId))
+                .findFirst()
+                .orElseThrow(() -> new CitationNotFoundException(reportId, evidenceId));
+
+        Map<String, String> metadata = citation.sourceMetadata() == null ? Map.of() : citation.sourceMetadata();
+        return new CitationDetail(
+                report.reportId(),
+                citation.evidenceId(),
+                citation.sourceType(),
+                citation.title(),
+                citation.url(),
+                citation.section(),
+                firstPresent(metadata, "published_at", "filing_date", "call_date", "created_at"),
+                firstPresent(metadata, "source_chunk", "chunk_text", "text", "excerpt"),
+                metadata);
+    }
+
+    private static boolean matchesTicker(ReportResponse report, String ticker) {
+        if (ticker == null || ticker.isBlank()) {
+            return true;
+        }
+        String normalizedTicker = ticker.trim().toUpperCase(Locale.ROOT);
+        return report.tickers().contains(normalizedTicker);
+    }
+
+    private static boolean matchesCreatedAfter(ReportResponse report, Instant createdAfter) {
+        return createdAfter == null || !report.createdAt().isBefore(createdAfter);
+    }
+
+    private static boolean matchesCreatedBefore(ReportResponse report, Instant createdBefore) {
+        return createdBefore == null || !report.createdAt().isAfter(createdBefore);
+    }
+
+    private static String firstPresent(Map<String, String> metadata, String... keys) {
+        for (String key : keys) {
+            String value = metadata.get(key);
+            if (value != null && !value.isBlank()) {
+                return value;
+            }
+        }
+        return "";
     }
 
     private static List<String> normalizeTickers(List<String> tickers) {

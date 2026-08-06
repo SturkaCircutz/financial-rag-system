@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from rag_service.models import SourceFilter
+from rag_service.paths import data_root
 from rag_service.sec_ingestion import slugify
 
 
@@ -36,7 +37,7 @@ class IngestedNewsDocument:
     metadata: dict[str, str]
 
 
-NEWS_DATA_ROOT = Path(__file__).resolve().parents[2] / "data" / "news"
+NEWS_DATA_ROOT = data_root() / "news"
 
 
 class LocalNewsIngestor:

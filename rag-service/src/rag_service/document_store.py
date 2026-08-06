@@ -6,9 +6,10 @@ from typing import Any
 
 from rag_service.documents import Chunk, ChunkMetadataFilter, Document, safe_name
 from rag_service.models import SourceFilter
+from rag_service.paths import data_root
 
 
-LOCAL_STORE_ROOT = Path(__file__).resolve().parents[2] / "data" / "processed"
+LOCAL_STORE_ROOT = data_root() / "processed"
 
 
 @dataclass(frozen=True)

@@ -5,6 +5,7 @@ import java.util.List;
 
 import jakarta.servlet.http.HttpServletRequest;
 
+import com.financialrag.backend.report.CitationNotFoundException;
 import com.financialrag.backend.report.ReportNotFoundException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -21,6 +22,20 @@ public class GlobalExceptionHandler {
             ReportNotFoundException exception,
             HttpServletRequest request) {
         return error(HttpStatus.NOT_FOUND, "not_found", exception.getMessage(), request);
+    }
+
+    @ExceptionHandler(CitationNotFoundException.class)
+    public ResponseEntity<ApiError> handleCitationNotFound(
+            CitationNotFoundException exception,
+            HttpServletRequest request) {
+        return error(HttpStatus.NOT_FOUND, "not_found", exception.getMessage(), request);
+    }
+
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<ApiError> handleInvalidArgument(
+            IllegalArgumentException exception,
+            HttpServletRequest request) {
+        return error(HttpStatus.BAD_REQUEST, "invalid_request", exception.getMessage(), request);
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

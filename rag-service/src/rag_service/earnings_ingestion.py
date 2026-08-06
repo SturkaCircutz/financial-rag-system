@@ -5,6 +5,7 @@ from datetime import datetime
 from pathlib import Path
 
 from rag_service.models import SourceFilter
+from rag_service.paths import data_root
 from rag_service.sec_ingestion import slugify
 
 
@@ -42,7 +43,7 @@ class IngestedEarningsDocument:
     metadata: dict[str, str]
 
 
-EARNINGS_DATA_ROOT = Path(__file__).resolve().parents[2] / "data" / "earnings"
+EARNINGS_DATA_ROOT = data_root() / "earnings"
 FIELD_PATTERN = re.compile(r"^(SEGMENT|SPEAKER|ROLE|TOPIC):\s*(.+)$", re.IGNORECASE)
 
 
