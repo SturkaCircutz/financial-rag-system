@@ -10,6 +10,15 @@
       "file_path": "NVDA/local-10q.txt"
     },
     {
+      "ticker": "NVDA",
+      "accession_number": "local-nvda-2026-10k",
+      "form_type": "10-K",
+      "filing_date": "2026-03-18",
+      "report_period": "2026-01-26",
+      "url": "https://example.com/sec/nvda/local-10k",
+      "file_path": "NVDA/local-10k.txt"
+    },
+    {
       "ticker": "MSFT",
       "accession_number": "local-msft-2026-10k",
       "form_type": "10-K",

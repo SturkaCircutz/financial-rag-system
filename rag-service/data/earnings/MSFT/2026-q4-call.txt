@@ -1,0 +1,13 @@
+SEGMENT: Prepared Remarks
+SPEAKER: Satya Nadella
+ROLE: CEO
+TOPIC: Azure AI Demand
+Local earnings sample says MSFT Azure AI demand remained strong as enterprise customers adopted
+cloud infrastructure, AI services, productivity copilots, and security tools.
+
+SEGMENT: Q&A
+SPEAKER: Amy Hood
+ROLE: CFO
+TOPIC: Capital Expenditure
+Local earnings sample says MSFT capital expenditure priorities include cloud capacity, AI infrastructure,
+data center buildout, and disciplined operating expense management.

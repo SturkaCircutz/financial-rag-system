@@ -1,6 +1,8 @@
 from dataclasses import dataclass, field
 
+from rag_service.earnings_ingestion import IngestedEarningsDocument, LocalEarningsIngestor
 from rag_service.models import SourceFilter
+from rag_service.news_ingestion import IngestedNewsDocument, LocalNewsIngestor
 from rag_service.sec_ingestion import IngestedSecDocument, LocalSecFilingIngestor
 
 
@@ -17,6 +19,8 @@ class EvidenceDocument:
 
 
 SEC_INGESTOR = LocalSecFilingIngestor()
+NEWS_INGESTOR = LocalNewsIngestor()
+EARNINGS_INGESTOR = LocalEarningsIngestor()
 
 
 LOCAL_CORPUS = (
@@ -164,10 +168,43 @@ def documents_for(source_type: SourceFilter, tickers: list[str]) -> list[Evidenc
     ]
     if source_type == SourceFilter.SEC:
         documents.extend(evidence_document_for_sec_filing(document) for document in SEC_INGESTOR.ingest(tickers))
+    if source_type == SourceFilter.NEWS:
+        documents.extend(evidence_document_for_news_article(document) for document in NEWS_INGESTOR.ingest(tickers))
+    if source_type == SourceFilter.EARNINGS:
+        documents.extend(
+            evidence_document_for_earnings_segment(document)
+            for document in EARNINGS_INGESTOR.ingest(tickers, latest_only=True)
+        )
     return documents
 
 
 def evidence_document_for_sec_filing(document: IngestedSecDocument) -> EvidenceDocument:
+    return EvidenceDocument(
+        source_id=document.source_id,
+        ticker=document.ticker,
+        source_type=document.source_type,
+        title=document.title,
+        url=document.url,
+        section=document.section,
+        text=document.text,
+        metadata=document.metadata,
+    )
+
+
+def evidence_document_for_news_article(document: IngestedNewsDocument) -> EvidenceDocument:
+    return EvidenceDocument(
+        source_id=document.source_id,
+        ticker=document.ticker,
+        source_type=document.source_type,
+        title=document.title,
+        url=document.url,
+        section=document.section,
+        text=document.text,
+        metadata=document.metadata,
+    )
+
+
+def evidence_document_for_earnings_segment(document: IngestedEarningsDocument) -> EvidenceDocument:
     return EvidenceDocument(
         source_id=document.source_id,
         ticker=document.ticker,

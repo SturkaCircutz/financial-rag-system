@@ -1,0 +1,20 @@
+SEGMENT: Prepared Remarks
+SPEAKER: Jensen Huang
+ROLE: CEO
+TOPIC: Data Center Demand
+Local earnings sample says NVDA data center demand remained strong, with cloud customers expanding
+AI training and inference deployments while supply availability shaped near-term shipments.
+
+SEGMENT: Q&A
+SPEAKER: Colette Kress
+ROLE: CFO
+TOPIC: Gross Margin
+Local earnings sample says NVDA gross margin depends on product transition timing, component cost,
+networking mix, and customer deployment schedules.
+
+SEGMENT: Guidance
+SPEAKER: Colette Kress
+ROLE: CFO
+TOPIC: Supply Availability
+Local earnings sample says NVDA guidance depends on supply availability, new platform ramps,
+and demand visibility from large data center customers.

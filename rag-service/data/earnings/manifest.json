@@ -1,0 +1,26 @@
+{
+  "sources": [
+    {
+      "source_id": "nvda-2026-q1-call",
+      "ticker": "NVDA",
+      "title": "NVDA local Q1 2026 earnings call",
+      "fiscal_quarter": "Q1",
+      "fiscal_year": "2026",
+      "call_date": "2026-05-28",
+      "source_url": "https://example.com/earnings/nvda/2026-q1-call",
+      "source_kind": "transcript",
+      "file_path": "NVDA/2026-q1-call.txt"
+    },
+    {
+      "source_id": "msft-2026-q4-call",
+      "ticker": "MSFT",
+      "title": "MSFT local Q4 2026 earnings call",
+      "fiscal_quarter": "Q4",
+      "fiscal_year": "2026",
+      "call_date": "2026-07-30",
+      "source_url": "https://example.com/earnings/msft/2026-q4-call",
+      "source_kind": "transcript",
+      "file_path": "MSFT/2026-q4-call.txt"
+    }
+  ]
+}

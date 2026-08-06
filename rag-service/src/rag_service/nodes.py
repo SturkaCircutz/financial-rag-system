@@ -84,11 +84,39 @@ def rerank_chunks(state: RagGraphState) -> RagGraphState:
 
 
 def build_context(state: RagGraphState) -> RagGraphState:
-    selected_context = state.get("retrieved_chunks", [])[:6]
+    selected_context = select_context_chunks(
+        state.get("retrieved_chunks", []),
+        state.get("source_filters", SourceFilter.defaults()),
+    )
     return {
         "selected_context": selected_context,
         "trace": append_trace(state, "context_builder", "completed", f"selected {len(selected_context)} chunks"),
     }
+
+
+def select_context_chunks(
+    chunks: list[RetrievedChunk],
+    source_filters: list[SourceFilter],
+    max_chunks: int = 6,
+) -> list[RetrievedChunk]:
+    selected: list[RetrievedChunk] = []
+    selected_ids: set[str] = set()
+
+    for source_filter in source_filters:
+        source_chunk = next((chunk for chunk in chunks if chunk["source_type"] == source_filter), None)
+        if source_chunk:
+            selected.append(source_chunk)
+            selected_ids.add(source_chunk["chunk_id"])
+
+    for chunk in chunks:
+        if len(selected) >= max_chunks:
+            break
+        if chunk["chunk_id"] in selected_ids:
+            continue
+        selected.append(chunk)
+        selected_ids.add(chunk["chunk_id"])
+
+    return selected[:max_chunks]
 
 
 def generate_report(state: RagGraphState) -> RagGraphState:

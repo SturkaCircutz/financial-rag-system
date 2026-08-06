@@ -90,3 +90,45 @@ def test_graph_renders_sec_metadata_in_citations():
     assert sec_citation.section == "Risk Factors"
     assert sec_citation.source_metadata["cik"] == "0001045810"
     assert sec_citation.source_metadata["form_type"] == "10-Q"
+
+
+def test_graph_renders_news_metadata_in_citations():
+    response = generate_report_from_graph(
+        GenerateReportRequest(
+            tickers=["nvda"],
+            question="Which news discussed export-control rule changes and China demand?",
+            report_type=ReportType.EVENT_DRIVEN,
+            source_filters=[SourceFilter.NEWS],
+        )
+    )
+
+    news_citation = next(
+        citation
+        for citation in response.citations
+        if citation.source_metadata.get("canonical_url") == "https://example.com/news/nvda/export-control-update"
+    )
+
+    assert news_citation.section == "breaking news"
+    assert news_citation.source_metadata["publisher"] == "Local Market Wire"
+    assert news_citation.source_metadata["published_at"] == "2026-08-01T13:30:00Z"
+
+
+def test_graph_renders_earnings_metadata_in_citations():
+    response = generate_report_from_graph(
+        GenerateReportRequest(
+            tickers=["msft"],
+            question="Which speaker discussed capital expenditure priorities?",
+            report_type=ReportType.EARNINGS_BRIEF,
+            source_filters=[SourceFilter.EARNINGS],
+        )
+    )
+
+    earnings_citation = next(
+        citation
+        for citation in response.citations
+        if citation.source_metadata.get("topic") == "Capital Expenditure"
+    )
+
+    assert earnings_citation.section == "Q&A"
+    assert earnings_citation.source_metadata["speaker"] == "Amy Hood"
+    assert earnings_citation.source_metadata["fiscal_quarter"] == "Q4"

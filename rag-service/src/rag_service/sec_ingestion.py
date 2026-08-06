@@ -1,6 +1,7 @@
 import json
 import re
 from dataclasses import dataclass
+from datetime import date
 from pathlib import Path
 
 from rag_service.models import SourceFilter
@@ -72,15 +73,67 @@ class LocalSecFilingIngestor:
         self._filings = filings if filings is not None else load_local_sec_filings(manifest_path or data_root / "manifest.json")
         self._cik_lookup = cik_lookup or TickerCikLookup()
 
-    def ingest(self, tickers: list[str], form_types: list[str] | None = None) -> list[IngestedSecDocument]:
+    def ingest(
+        self,
+        tickers: list[str],
+        ciks: list[str] | None = None,
+        form_types: list[str] | None = None,
+        accession_numbers: list[str] | None = None,
+        filed_after: str | None = None,
+        filed_before: str | None = None,
+    ) -> list[IngestedSecDocument]:
         ticker_set = {ticker.strip().upper() for ticker in tickers if ticker.strip()}
+        cik_set = {cik.strip().lstrip("0") for cik in ciks or [] if cik.strip()}
         allowed_forms = {form_type.strip().upper() for form_type in form_types or [] if form_type.strip()}
+        allowed_accessions = {
+            accession_number.strip()
+            for accession_number in accession_numbers or []
+            if accession_number.strip()
+        }
+        after = date.fromisoformat(filed_after) if filed_after else None
+        before = date.fromisoformat(filed_before) if filed_before else None
         return [
             document
             for filing in self._filings
-            if filing.ticker in ticker_set and (not allowed_forms or filing.form_type.upper() in allowed_forms)
+            if self._matches_filing(
+                filing,
+                ticker_set,
+                cik_set,
+                allowed_forms,
+                allowed_accessions,
+                after,
+                before,
+            )
             for document in self._documents_for_filing(filing)
         ]
+
+    def _matches_filing(
+        self,
+        filing: LocalSecFiling,
+        ticker_set: set[str],
+        cik_set: set[str],
+        allowed_forms: set[str],
+        allowed_accessions: set[str],
+        after: date | None,
+        before: date | None,
+    ) -> bool:
+        company = self._cik_lookup.company_for(filing.ticker)
+        if company is None:
+            return False
+        if ticker_set and filing.ticker not in ticker_set:
+            return False
+        if cik_set and company.cik.lstrip("0") not in cik_set:
+            return False
+        if allowed_forms and filing.form_type.upper() not in allowed_forms:
+            return False
+        if allowed_accessions and filing.accession_number not in allowed_accessions:
+            return False
+        filing_date = date.fromisoformat(filing.filing_date)
+        if after and filing_date < after:
+            return False
+        if before and filing_date > before:
+            return False
+        return True
 
     def _documents_for_filing(self, filing: LocalSecFiling) -> list[IngestedSecDocument]:
         company = self._cik_lookup.company_for(filing.ticker)

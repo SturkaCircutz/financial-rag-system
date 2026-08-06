@@ -1,0 +1,60 @@
+{
+  "articles": [
+    {
+      "article_id": "export-control-update",
+      "ticker": "NVDA",
+      "title": "NVDA export-control update",
+      "publisher": "Local Market Wire",
+      "author": "Avery Chen",
+      "published_at": "2026-08-01T13:30:00Z",
+      "url": "https://example.com/news/nvda/export-control-update",
+      "canonical_url": "https://example.com/news/nvda/export-control-update",
+      "article_type": "breaking news",
+      "topics": ["export_controls", "china_demand", "data_center"],
+      "source_reliability": "high",
+      "file_path": "NVDA/export-control-update.txt"
+    },
+    {
+      "article_id": "export-control-update-syndicated",
+      "ticker": "NVDA",
+      "title": "Syndicated NVDA export-control update",
+      "publisher": "Partner Market Wire",
+      "author": "Wire Staff",
+      "published_at": "2026-08-01T14:00:00Z",
+      "url": "https://example.com/news/syndicated/nvda/export-control-update",
+      "canonical_url": "https://example.com/news/nvda/export-control-update",
+      "article_type": "breaking news",
+      "topics": ["export_controls", "china_demand", "data_center"],
+      "source_reliability": "medium",
+      "file_path": "NVDA/export-control-update-syndicated.txt"
+    },
+    {
+      "article_id": "product-cycle-analysis",
+      "ticker": "NVDA",
+      "title": "NVDA product-cycle analysis",
+      "publisher": "Local Analyst Desk",
+      "author": "Mira Patel",
+      "published_at": "2026-07-28T09:15:00Z",
+      "url": "https://example.com/news/nvda/product-cycle-analysis",
+      "canonical_url": "https://example.com/news/nvda/product-cycle-analysis",
+      "article_type": "analysis",
+      "topics": ["product_cycle", "cloud_customers", "competition"],
+      "source_reliability": "high",
+      "file_path": "NVDA/product-cycle-analysis.txt"
+    },
+    {
+      "article_id": "azure-ai-demand",
+      "ticker": "MSFT",
+      "title": "MSFT Azure AI demand update",
+      "publisher": "Local Market Wire",
+      "author": "Jordan Lee",
+      "published_at": "2026-07-31T15:45:00Z",
+      "url": "https://example.com/news/msft/azure-ai-demand",
+      "canonical_url": "https://example.com/news/msft/azure-ai-demand",
+      "article_type": "analysis",
+      "topics": ["azure", "ai_monetization", "cloud_capacity"],
+      "source_reliability": "high",
+      "file_path": "MSFT/azure-ai-demand.txt"
+    }
+  ]
+}

@@ -31,3 +31,31 @@ def test_local_source_memory_keeps_source_filters_separate():
     assert result.manifests
     assert {manifest.source_type for manifest in result.manifests} == {SourceFilter.NEWS}
     assert {chunk["source_type"] for chunk in result.chunks} == {SourceFilter.NEWS}
+
+
+def test_local_source_memory_preserves_news_metadata():
+    result = LocalSourceMemory().collect(SourceFilter.NEWS, ["NVDA"])
+
+    news_pointer = next(
+        pointer
+        for pointer in result.chunk_pointers
+        if pointer.metadata.get("canonical_url") == "https://example.com/news/nvda/export-control-update"
+    )
+
+    assert news_pointer.metadata["publisher"] == "Local Market Wire"
+    assert news_pointer.metadata["published_at"] == "2026-08-01T13:30:00Z"
+    assert news_pointer.metadata["article_type"] == "breaking news"
+
+
+def test_local_source_memory_preserves_earnings_metadata():
+    result = LocalSourceMemory().collect(SourceFilter.EARNINGS, ["NVDA"])
+
+    earnings_pointer = next(
+        pointer
+        for pointer in result.chunk_pointers
+        if pointer.metadata.get("topic") == "Supply Availability"
+    )
+
+    assert earnings_pointer.metadata["fiscal_quarter"] == "Q1"
+    assert earnings_pointer.metadata["speaker"] == "Colette Kress"
+    assert earnings_pointer.metadata["transcript_segment"] == "Guidance"

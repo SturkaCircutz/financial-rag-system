@@ -38,6 +38,7 @@ def test_load_local_sec_filings_reads_manifest():
     assert {filing.form_type for filing in filings} == {"10-Q", "10-K"}
     assert {filing.file_path for filing in filings} == {
         "NVDA/local-10q.txt",
+        "NVDA/local-10k.txt",
         "MSFT/local-10k.txt",
     }
 
@@ -65,3 +66,26 @@ def test_local_sec_ingestor_filters_by_ticker_and_form_type():
     assert documents
     assert {document.ticker for document in documents} == {"MSFT"}
     assert {document.metadata["form_type"] for document in documents} == {"10-K"}
+
+
+def test_local_sec_ingestor_can_ingest_10q_and_10k_for_same_ticker():
+    documents = LocalSecFilingIngestor().ingest(["NVDA"], form_types=["10-Q", "10-K"])
+
+    assert {document.metadata["form_type"] for document in documents} == {"10-Q", "10-K"}
+    assert "Business" in {document.section for document in documents}
+    assert "Financial Statements and Supplementary Data" in {document.section for document in documents}
+    assert "Management's Discussion and Analysis" in {document.section for document in documents}
+
+
+def test_local_sec_ingestor_filters_by_cik_accession_and_filing_date():
+    documents = LocalSecFilingIngestor().ingest(
+        [],
+        ciks=["1045810"],
+        accession_numbers=["local-nvda-2026-10k"],
+        filed_after="2026-03-01",
+        filed_before="2026-03-31",
+    )
+
+    assert documents
+    assert {document.ticker for document in documents} == {"NVDA"}
+    assert {document.metadata["accession_number"] for document in documents} == {"local-nvda-2026-10k"}
