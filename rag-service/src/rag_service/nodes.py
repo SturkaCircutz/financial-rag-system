@@ -1,3 +1,6 @@
+from dataclasses import asdict
+
+from rag_service.documents import ChunkMetadataFilter
 from rag_service.models import (
     Citation,
     Diagnostics,
@@ -5,7 +8,7 @@ from rag_service.models import (
     SourceCoverage,
     SourceFilter,
 )
-from rag_service.retrieval import rank_agent_results
+from rag_service.retrieval import retrieve_agent_results
 from rag_service.source_memory import LocalSourceMemory
 from rag_service.state import AgentResult, RagGraphState, RetrievedChunk, TraceEvent
 
@@ -70,12 +73,23 @@ def collect_source(state: RagGraphState, source_filter: SourceFilter) -> RagGrap
 
 
 def retrieve_chunks(state: RagGraphState) -> RagGraphState:
-    chunks = rank_agent_results(state.get("agent_results", []), build_retrieval_query(state))
+    retrieval_result = retrieve_agent_results(
+        state.get("agent_results", []),
+        build_retrieval_query(state),
+        filters=build_retrieval_metadata_filter(state),
+    )
+    chunks = retrieval_result.chunks
     diagnostics = {**state.get("diagnostics", {}), "retrievalStatus": "completed"}
     return {
         "retrieved_chunks": chunks,
+        "retrieval_diagnostics": [asdict(diagnostic) for diagnostic in retrieval_result.diagnostics],
         "diagnostics": diagnostics,
-        "trace": append_trace(state, "hybrid_retriever", "completed", f"retrieved {len(chunks)} chunks"),
+        "trace": append_trace(
+            state,
+            "hybrid_retriever",
+            "completed",
+            f"retrieved {len(chunks)} chunks from {len(retrieval_result.diagnostics)} diagnostic events",
+        ),
     }
 
 
@@ -166,6 +180,13 @@ def build_retrieval_query(state: RagGraphState) -> str:
             request.report_type.value.lower().replace("_", " "),
             request.time_horizon,
         ]
+    )
+
+
+def build_retrieval_metadata_filter(state: RagGraphState) -> ChunkMetadataFilter:
+    return ChunkMetadataFilter(
+        tickers=tuple(state.get("normalized_tickers", [])),
+        source_types=tuple(state.get("source_filters", [])),
     )
 
 

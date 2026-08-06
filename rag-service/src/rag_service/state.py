@@ -28,6 +28,12 @@ class RetrievedChunk(TypedDict):
     text: str
     content_hash: str
     score: float
+    rank: NotRequired[int]
+    bm25_score: NotRequired[float]
+    vector_score: NotRequired[float]
+    fusion_score: NotRequired[float]
+    matched_by: NotRequired[list[str]]
+    filter_path: NotRequired[list[str]]
     metadata: NotRequired[dict[str, str]]
 
 
@@ -43,6 +49,7 @@ class RagGraphState(TypedDict):
     source_filters: NotRequired[list[SourceFilter]]
     agent_results: NotRequired[list[AgentResult]]
     retrieved_chunks: NotRequired[list[RetrievedChunk]]
+    retrieval_diagnostics: NotRequired[list[dict[str, object]]]
     selected_context: NotRequired[list[RetrievedChunk]]
     diagnostics: NotRequired[dict[str, str]]
     trace: NotRequired[list[TraceEvent]]
