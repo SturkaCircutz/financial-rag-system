@@ -1,3 +1,4 @@
+import json
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -47,28 +48,6 @@ SEC_COMPANIES = {
 }
 
 
-LOCAL_SEC_FILINGS = (
-    LocalSecFiling(
-        ticker="NVDA",
-        accession_number="local-nvda-2026q1-10q",
-        form_type="10-Q",
-        filing_date="2026-05-28",
-        report_period="2026-04-26",
-        url="https://example.com/sec/nvda/local-10q",
-        file_path="NVDA/local-10q.txt",
-    ),
-    LocalSecFiling(
-        ticker="MSFT",
-        accession_number="local-msft-2026-10k",
-        form_type="10-K",
-        filing_date="2026-07-30",
-        report_period="2026-06-30",
-        url="https://example.com/sec/msft/local-10k",
-        file_path="MSFT/local-10k.txt",
-    ),
-)
-
-
 SECTION_HEADER_PATTERN = re.compile(r"^ITEM\s+[0-9A-Z]+\.?\s+(.+)$", re.IGNORECASE)
 SEC_DATA_ROOT = Path(__file__).resolve().parents[2] / "data" / "sec"
 
@@ -84,13 +63,14 @@ class TickerCikLookup:
 class LocalSecFilingIngestor:
     def __init__(
         self,
-        filings: tuple[LocalSecFiling, ...] = LOCAL_SEC_FILINGS,
+        filings: tuple[LocalSecFiling, ...] | None = None,
         cik_lookup: TickerCikLookup | None = None,
         data_root: Path = SEC_DATA_ROOT,
+        manifest_path: Path | None = None,
     ):
-        self._filings = filings
-        self._cik_lookup = cik_lookup or TickerCikLookup()
         self._data_root = data_root
+        self._filings = filings if filings is not None else load_local_sec_filings(manifest_path or data_root / "manifest.json")
+        self._cik_lookup = cik_lookup or TickerCikLookup()
 
     def ingest(self, tickers: list[str], form_types: list[str] | None = None) -> list[IngestedSecDocument]:
         ticker_set = {ticker.strip().upper() for ticker in tickers if ticker.strip()}
@@ -162,6 +142,24 @@ def parse_sections(text: str) -> list[SecSection]:
     if current_name and current_lines:
         sections.append(SecSection(current_name, " ".join(current_lines)))
     return sections
+
+
+def load_local_sec_filings(manifest_path: Path) -> tuple[LocalSecFiling, ...]:
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    filings = manifest.get("filings", [])
+    return tuple(local_sec_filing_from_manifest(item) for item in filings)
+
+
+def local_sec_filing_from_manifest(item: dict[str, str]) -> LocalSecFiling:
+    return LocalSecFiling(
+        ticker=item["ticker"].strip().upper(),
+        accession_number=item["accession_number"],
+        form_type=item["form_type"].strip().upper(),
+        filing_date=item["filing_date"],
+        report_period=item["report_period"],
+        url=item["url"],
+        file_path=item["file_path"],
+    )
 
 
 def normalize_section_name(value: str) -> str:

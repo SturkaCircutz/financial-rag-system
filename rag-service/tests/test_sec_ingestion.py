@@ -1,5 +1,11 @@
 from rag_service.models import SourceFilter
-from rag_service.sec_ingestion import LocalSecFilingIngestor, TickerCikLookup, parse_sections
+from rag_service.sec_ingestion import (
+    SEC_DATA_ROOT,
+    LocalSecFilingIngestor,
+    TickerCikLookup,
+    load_local_sec_filings,
+    parse_sections,
+)
 
 
 def test_ticker_cik_lookup_normalizes_ticker():
@@ -23,6 +29,17 @@ Risk text.
 
     assert [section.name for section in sections] == ["Business", "Risk Factors"]
     assert sections[1].text == "Risk text."
+
+
+def test_load_local_sec_filings_reads_manifest():
+    filings = load_local_sec_filings(SEC_DATA_ROOT / "manifest.json")
+
+    assert {filing.ticker for filing in filings} == {"NVDA", "MSFT"}
+    assert {filing.form_type for filing in filings} == {"10-Q", "10-K"}
+    assert {filing.file_path for filing in filings} == {
+        "NVDA/local-10q.txt",
+        "MSFT/local-10k.txt",
+    }
 
 
 def test_local_sec_ingestor_returns_section_documents_with_metadata():
