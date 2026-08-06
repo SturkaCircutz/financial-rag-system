@@ -9,10 +9,12 @@ from rag_service.models import (
     SourceFilter,
 )
 from rag_service.retrieval import retrieve_agent_results
+from rag_service.reranker import CrossEncoderReranker
 from rag_service.source_memory import LocalSourceMemory
 from rag_service.state import AgentResult, RagGraphState, RetrievedChunk, TraceEvent
 
 SOURCE_MEMORY = LocalSourceMemory()
+RERANKER = CrossEncoderReranker(exclude_low_confidence=False)
 
 
 def append_trace(state: RagGraphState, node: str, status: str, detail: str) -> list[TraceEvent]:
@@ -94,10 +96,30 @@ def retrieve_chunks(state: RagGraphState) -> RagGraphState:
 
 
 def rerank_chunks(state: RagGraphState) -> RagGraphState:
-    chunks = sorted(state.get("retrieved_chunks", []), key=lambda chunk: chunk["score"], reverse=True)
+    request = state["request"]
+    result = RERANKER.rerank(
+        state.get("retrieved_chunks", []),
+        user_question=request.question,
+        report_intent=request.report_type,
+    )
+    diagnostics = {
+        **state.get("diagnostics", {}),
+        "rerankerStatus": result.status,
+        "rerankerLatencyMs": str(result.latency_ms),
+    }
     return {
-        "retrieved_chunks": chunks,
-        "trace": append_trace(state, "reranker", "completed", "ranked candidate chunks"),
+        "retrieved_chunks": result.chunks,
+        "rerank_diagnostics": [asdict(diagnostic) for diagnostic in result.diagnostics],
+        "diagnostics": diagnostics,
+        "trace": append_trace(
+            state,
+            "reranker",
+            result.status,
+            (
+                f"reranked {len(result.diagnostics)} candidates "
+                f"to {len(result.chunks)} chunks in {result.latency_ms}ms"
+            ),
+        ),
     }
 
 

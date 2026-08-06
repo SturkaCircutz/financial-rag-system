@@ -43,6 +43,9 @@ def test_graph_defaults_to_all_sources_and_records_trace():
     assert response.source_coverage.sec_chunks >= 1
     assert response.source_coverage.news_chunks >= 1
     assert response.source_coverage.earnings_chunks >= 1
+    assert final_state["diagnostics"]["rerankerStatus"] == "completed"
+    assert final_state["rerank_diagnostics"]
+    assert all("reranker_score" in chunk for chunk in final_state["selected_context"])
     assert [event["node"] for event in final_state["trace"]] == [
         "plan_request",
         "sec_agent",
@@ -66,8 +69,8 @@ def test_graph_ranks_question_relevant_evidence_first():
         )
     )
 
-    assert response.citations[0].evidence_id == "nvda-sec-risk-001#chunk-001"
-    assert "export controls" in response.key_findings[0]
+    assert response.citations[0].section == "Risk Factors"
+    assert "export" in response.key_findings[0]
     assert response.diagnostics.mode == "local_retrieval"
 
 

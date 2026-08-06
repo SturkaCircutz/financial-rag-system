@@ -34,6 +34,10 @@ class RetrievedChunk(TypedDict):
     fusion_score: NotRequired[float]
     matched_by: NotRequired[list[str]]
     filter_path: NotRequired[list[str]]
+    reranker_score: NotRequired[float]
+    reranker_rank: NotRequired[int]
+    reranker_status: NotRequired[str]
+    low_confidence: NotRequired[bool]
     metadata: NotRequired[dict[str, str]]
 
 
@@ -50,6 +54,7 @@ class RagGraphState(TypedDict):
     agent_results: NotRequired[list[AgentResult]]
     retrieved_chunks: NotRequired[list[RetrievedChunk]]
     retrieval_diagnostics: NotRequired[list[dict[str, object]]]
+    rerank_diagnostics: NotRequired[list[dict[str, object]]]
     selected_context: NotRequired[list[RetrievedChunk]]
     diagnostics: NotRequired[dict[str, str]]
     trace: NotRequired[list[TraceEvent]]
